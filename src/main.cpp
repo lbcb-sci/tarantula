@@ -12,8 +12,6 @@
 #include "bioparser/fastq_parser.hpp"
 #include "biosoup/timer.hpp"
 
-std::atomic<std::uint32_t> biosoup::Sequence::num_objects{0};
-
 namespace {
 
 static struct option options[] = {
@@ -23,7 +21,7 @@ static struct option options[] = {
   {nullptr, 0, nullptr, 0}
 };
 
-std::unique_ptr<bioparser::Parser<biosoup::Sequence>> CreateParser(
+std::unique_ptr<bioparser::Parser<biosoup::NucleicAcid>> CreateParser(
     const std::string& path) {
   auto is_suffix = [] (const std::string& s, const std::string& suff) {
     return s.size() < suff.size() ? false :
@@ -34,7 +32,7 @@ std::unique_ptr<bioparser::Parser<biosoup::Sequence>> CreateParser(
       is_suffix(path, ".fna")   || is_suffix(path, ".fna.gz") ||
       is_suffix(path, ".fa")    || is_suffix(path, ".fa.gz")) {
     try {
-      return bioparser::Parser<biosoup::Sequence>::Create<bioparser::FastaParser>(path);  // NOLINT
+      return bioparser::Parser<biosoup::NucleicAcid>::Create<bioparser::FastaParser>(path);  // NOLINT
     } catch (const std::invalid_argument& exception) {
       std::cerr << exception.what() << std::endl;
       return nullptr;
@@ -43,7 +41,7 @@ std::unique_ptr<bioparser::Parser<biosoup::Sequence>> CreateParser(
   if (is_suffix(path, ".fastq") || is_suffix(path, ".fastq.gz") ||
       is_suffix(path, ".fq")    || is_suffix(path, ".fq.gz")) {
     try {
-      return bioparser::Parser<biosoup::Sequence>::Create<bioparser::FastqParser>(path);  // NOLINT
+      return bioparser::Parser<biosoup::NucleicAcid>::Create<bioparser::FastqParser>(path);  // NOLINT
     } catch (const std::invalid_argument& exception) {
       std::cerr << exception.what() << std::endl;
       return nullptr;
@@ -115,22 +113,22 @@ int main(int argc, char** argv) {
   if (tparser == nullptr) {
     return 1;
   }
-  std::vector<std::unique_ptr<biosoup::Sequence>> targets;
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> targets;
   try {
     targets = tparser->Parse(-1);
   } catch (std::invalid_argument& exception) {
     std::cerr << exception.what() << std::endl;
     return 1;
   }
-  std::cerr << "[tarantula::] num targets = " << targets.size() << std::endl;
+  std::cerr << "[tarantula::] Number of targets = " << targets.size() << std::endl;
 
-  std::vector<std::unique_ptr<biosoup::Sequence>> sequences;
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> sequences;
   for (std::uint32_t i = 1; i < input_paths.size(); ++i) {
     auto sparser = CreateParser(input_paths[i]);
     if (sparser == nullptr) {
       return 1;
     }
-    std::vector<std::unique_ptr<biosoup::Sequence>> part;
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>> part;
     try {
       part = sparser->Parse(-1);
     } catch (std::invalid_argument& exception) {
@@ -142,11 +140,13 @@ int main(int argc, char** argv) {
         std::make_move_iterator(part.begin()),
         std::make_move_iterator(part.end()));
   }
-  std::cerr << "[tarantula::] num sequences = " << sequences.size() << std::endl;  // NOLINT
+  std::cerr << "[tarantula::] Number of sequences = " << sequences.size() << std::endl;  // NOLINT
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
   tarantula::Graph graph{thread_pool};
+
+  graph.Construct(targets, sequences); 
 
   timer.Stop();
   std::cerr << "[tarantula::] " << std::fixed << timer.elapsed_time() << "s"
