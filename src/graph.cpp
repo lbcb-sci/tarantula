@@ -6,6 +6,7 @@
 
 
 
+
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
 namespace tarantula {
@@ -81,44 +82,51 @@ void Graph::Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& target
     }
   }
 
+  //then create pilo-o-gram per contig, qn is how to get all the contigs?
+  CreateGraph(targets); 
+  std::cerr << "[tarantula::Construct] Graph created, number of nodes: " << contigs.size() << std::endl;
+  FillPileogram(readPairs); 
+  std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: " << contigs.size() << std::endl;
   
-  //then create pilo-o-gram per contig 
-  
-  for (auto const& rp: readPairs){
-    std::tuple<std::uint32_t, std::uint32_t> overlap; 
-    //find overlap 
-    overlap = Graph::GetOverlap(rp.second[0][0],rp.second[1][0]); 
-
-    //compare the 2 overlaps
-    //create pilo-o-gram
-  }
   return; 
+}
 
+//technically this also can be multi-thread - just remove the for loop
+void Graph::CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets){
+  //go thru all the read pair and then create node?
+  for (auto const& target: targets){ 
+    Node node = Node(target->id, target->inflated_len); 
+    contigs.insert({target->id,node}); 
+    //everything init except for the pilogram data part --> that one need the readpair to update
+  }
+}
+
+void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& readPairs){
+  //go through all the read pairs
+  std::unordered_map<std::uint32_t,Node>::iterator found;
+  std::tuple<std::uint32_t, std::uint32_t> overlap;
+  //find the contig, then add layer to pileogram
+  for (const auto& rp: readPairs){
+    found = contigs.find(rp.second[0][0].rhs_id); 
+    if (found==contigs.end()){
+      //not found 
+      std::cerr << "ERROR contig not found" << std::endl;
+    }
+    else{
+      overlap = GetOverlap(rp.second[0][0],rp.second[1][0]); 
+      found->second.pileogram.addLayer(std::get<0>(overlap), std::get<1>(overlap)); 
+      std::cerr << "[tarantula::Construct] Fill pile-o-gram - contig: " << rp.second[0][0].rhs_id << ", length: " << found->second.pileogram.contigLen << "| begin: " << std::get<0>(overlap) << " end: " << std::get<1>(overlap) << std::endl;
+    }
+  }
 }
 
 std::tuple<std::uint32_t, std::uint32_t> Graph::GetOverlap(biosoup::Overlap ol1, biosoup::Overlap ol2){
   std::tuple<std::uint32_t, std::uint32_t> overlap;
-  uint32_t begin, end; 
   if (ol1.rhs_end > ol2.rhs_begin){
     overlap = std::make_tuple(ol1.rhs_begin, ol2.rhs_end); 
   }
-  else if (ol1.rhs_begin < ol2.rhs_end){
-    overlap = std::make_tuple(ol2.rhs_begin, ol1.rhs_end); 
-  }
   else{
-    if (ol1.rhs_begin > ol2.rhs_begin){
-      begin = ol1.rhs_begin; 
-    }
-    else{
-      begin = ol2.rhs_begin;
-    }
-    if (ol1.rhs_end < ol2.rhs_end){
-      end = ol1.rhs_end;
-    }
-    else{
-      end = ol2.rhs_end; 
-    }
-    overlap = std::make_tuple(begin, end); 
+    overlap = std::make_tuple(ol2.rhs_begin, ol1.rhs_end); 
   }
   return overlap; 
 }

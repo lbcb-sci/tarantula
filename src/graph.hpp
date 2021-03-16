@@ -7,12 +7,24 @@
 #include <unordered_map>
 #include <tuple>
 
+
 #include "biosoup/overlap.hpp"
 #include "biosoup/nucleic_acid.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "ram/minimizer_engine.hpp"
 
+#include "pileogram.hpp"
+
 namespace tarantula {
+struct Node{
+  uint32_t id; 
+  uint32_t len; 
+  Pileogram pileogram; 
+  Node(uint32_t id, uint32_t len): pileogram(id,len){
+    this->id = id;
+    this->len = len; 
+  };
+}; 
 
 class Graph {
  public:
@@ -28,11 +40,14 @@ class Graph {
   void Construct(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets ,std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences); 
   void Process(std::vector<std::future<void>>& futures, ram::MinimizerEngine& minimizer_engine,std::unique_ptr<biosoup::NucleicAcid>& sequence1, std::unique_ptr<biosoup::NucleicAcid>& sequence2, std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& readPairs); 
   std::tuple<std::uint32_t, std::uint32_t> GetOverlap(biosoup::Overlap ol1, biosoup::Overlap ol2);
+  void FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& readPairs);
+  void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets); 
 
   ~Graph() = default;
 
  private:
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
+  std::unordered_map<std::uint32_t, Node> contigs; 
 };
 
 }  // namespace tarantula

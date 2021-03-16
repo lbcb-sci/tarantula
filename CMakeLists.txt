@@ -76,7 +76,8 @@ if (tarantula_build_tests)
 endif ()
 
 add_library(tarantula
-  src/graph.cpp)
+  src/graph.cpp
+  src/pileogram.cpp)
 
 target_link_libraries(tarantula
   ram::ram)
