@@ -19,26 +19,36 @@
 #include "pileogram.hpp"
 
 namespace tarantula {
+
 struct Node{
   uint32_t id;
   uint32_t len;
   Pileogram pileogram;
-  Node(uint32_t id, uint32_t len) : pileogram(id, len) {
-    this->id = id;
-    this->len = len;
-  };
+  Node(uint32_t id, uint32_t len)
+      : id(id),
+        len(len),
+        pileogram(id, len) {}
+
+  Node(const Node&) = default;
+  Node& operator=(const Node&) = default;
+
+  Node(Node&&) = default;
+  Node& operator=(Node&&) = default;
+
+  ~Node() = default;
 };
 
 class Graph {
  public:
-  explicit Graph(
-    std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);
-  
+  explicit Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
+
   Graph(const Graph&) = delete;
   Graph& operator=(const Graph&) = delete;
 
   Graph(Graph&&) = default;
   Graph& operator=(Graph&&) = default;
+
+  ~Graph() = default;
 
   void Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
@@ -57,7 +67,7 @@ class Graph {
   void FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
-  ~Graph() = default;
+  void PrintJson(const std::string& path) const;
 
  private:
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;

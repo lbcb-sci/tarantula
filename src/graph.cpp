@@ -1,11 +1,11 @@
-// Copyright (c) 2020 Robert Vaser
-
-#include <iostream>
+// Copyright (c) 2021 Cecilia Lee, Robert Vaser
 
 #include "graph.hpp"
 
+#include <fstream>
+#include <iostream>
 
-
+#include "cereal/archives/json.hpp"
 
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 
@@ -19,8 +19,8 @@ Graph::Graph(
 }
 
 void Graph::Construct(
-  std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
-  std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
   double frequency = 0.01;
@@ -104,17 +104,16 @@ void Graph::Construct(
 
 // technically this also can be multi-thread - just remove the for loop
 void Graph::CreateGraph(
-  std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   // go thru all the read pair and then create node?
   std::cerr << "create graph" << std::endl;
   for (auto const& target : targets) {
-    contigs.insert({target->id, Node(target->id, target->inflated_len)});
+    contigs.emplace(target->id, Node(target->id, target->inflated_len));
   }
   std::cerr << "create graph end" << std::endl;
 }
 
-void Graph::FillPileogram(
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs) {
+void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs) {  // NOLINT
   std::unordered_map<std::uint32_t, Node>::iterator found;
   std::tuple<std::uint32_t, std::uint32_t> overlap;
   std::uint32_t min_overlap = UINT32_MAX, max_overlap = 0, average_overlap = 0;
@@ -130,7 +129,7 @@ void Graph::FillPileogram(
       min_overlap = (length < min_overlap) ? length:min_overlap;
       max_overlap = (length > max_overlap) ? length:max_overlap;
       average_overlap += length;
-      found->second.pileogram.addLayer(std::get<0>(overlap), std::get<1>(overlap));
+      found->second.pileogram.AddLayer(std::get<0>(overlap), std::get<1>(overlap));
       std::cerr << "[tarantula::Construct] Fill pile-o-gram - contig: "
                 << rp.second[0][0].rhs_id << ", length: "
                 << found->second.pileogram.contig_len << "| begin: "
@@ -146,8 +145,12 @@ void Graph::FillPileogram(
   std::cerr << "[tarantula::Construct] average overlap: " << average_overlap << std::endl;
 }
 
-std::tuple<std::uint32_t, std::uint32_t> Graph::GetOverlap(biosoup::Overlap ol1, biosoup::Overlap ol2) {
-  return std::make_tuple(std::min(ol1.rhs_begin, ol2.rhs_begin), std::max(ol1.rhs_end, ol2.rhs_end));
+std::tuple<std::uint32_t, std::uint32_t> Graph::GetOverlap(
+    biosoup::Overlap ol1,
+    biosoup::Overlap ol2) {
+  return std::make_tuple(
+      std::min(ol1.rhs_begin, ol2.rhs_begin),
+      std::max(ol1.rhs_end,   ol2.rhs_end));
 }
 
 void Graph::Process(
@@ -206,7 +209,22 @@ void Graph::Process(
 
       // return pair
       return {sequence1->name, minimizer_result};
-    }, std::ref(minimizer_engine), std::cref(sequence1), std::cref(sequence2)));
+    },
+    std::ref(minimizer_engine),
+    std::cref(sequence1),
+    std::cref(sequence2)));
+}
+
+void Graph::PrintJson(const std::string& path) const {
+  if (path.empty()) {
+    return;
+  }
+
+  std::ofstream os(path);
+  cereal::JSONOutputArchive archive(os);
+  for (const auto& it : contigs) {
+    archive(cereal::make_nvp(std::to_string(it.second.id), it.second.pileogram));  // NOLINT
+  }
 }
 
 }  // namespace tarantula
