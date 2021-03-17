@@ -14,7 +14,7 @@ class Pileogram{
     Pileogram(std::uint32_t id, std::uint32_t contig_len);
     Pileogram();
 
-    Pileogram(const Pileogram&) = delete;
+    Pileogram(const Pileogram&) = default;
     Pileogram& operator=(const Pileogram&) = delete;
 
     Pileogram(Pileogram&&) = default;
