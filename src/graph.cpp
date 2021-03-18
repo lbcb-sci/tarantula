@@ -130,12 +130,6 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       max_overlap = (length > max_overlap) ? length:max_overlap;
       average_overlap += length;
       found->second.pileogram.AddLayer(std::get<0>(overlap), std::get<1>(overlap));
-      std::cerr << "[tarantula::Construct] Fill pile-o-gram - contig: "
-                << rp.second[0][0].rhs_id << ", length: "
-                << found->second.pileogram.contig_len << "| begin: "
-                << std::get<0>(overlap)
-                << " end: " << std::get<1>(overlap)
-                << std::endl;
     }
   }
   average_overlap /= read_pairs.size();
