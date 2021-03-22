@@ -57,42 +57,7 @@ void Graph::Construct(
 
   std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>> futures;
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
-
   biosoup::Timer timer;
-  timer.Start();
-
-  for (std::uint32_t i=0; i< sequences.size()-1; i++) {
-    if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
-      num_pair+=1;
-      Graph::Process(futures, minimizer_engine, sequences[i], sequences[i+1]);
-      i++;
-    } else {
-      continue;
-    }
-  }
-
-  // insert
-  for (auto& it : futures) {
-    // if it == empty , discard
-    auto result = it.get();
-    if (result.first.compare("empty") != 0) {
-      read_pairs.insert(result);
-    }
-  }
-
-  std::cerr << "[tarantula::Construct] Number of good read pair: "
-            << read_pairs.size() << " "
-            << timer.Stop() << "s"
-            << std::endl;
-
-  for (auto const& rp : read_pairs) {
-    if (rp.second[0].size() != 1) {
-      std::cerr << "error" << std::endl;
-    }
-    if (rp.second[0].size() != 1) {
-      std::cerr << "error" << std::endl;
-    }
-  }
 
   timer.Start();
   // then create pilo-o-gram per contig
@@ -101,13 +66,72 @@ void Graph::Construct(
             << contigs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
-
+  
+  // filter pair + create pile-o-gram + less than 4GB
   timer.Start();
-  FillPileogram(read_pairs);
-  std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
-            << contigs.size() << " "
-            << timer.Stop() << "s"
-            << std::endl;
+  std::size_t bytes = 0;
+  for (std::uint32_t i=0; i< sequences.size()-1; i++) {
+    if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
+      num_pair+=1;
+      Graph::Process(futures, minimizer_engine, sequences[i], sequences[i+1]);
+      bytes += sequences[i]->inflated_len + sequences[i+1]->inflated_len;
+      i++;
+    } else {
+      continue;
+    }
+    // less than 4GB
+    if (bytes >= (1ULL << 32)) {
+      // wait for futures
+      for (auto& it : futures) {
+        // if it == empty , discard
+        auto result = it.get();
+        if (result.first.compare("empty") != 0) {
+          read_pairs.insert(result);
+        }
+      }
+      std::cerr << "[tarantula::Construct] Number of good read pair: "
+          << read_pairs.size() << " "
+          << timer.Stop() << "s"
+          << std::endl;
+      
+      // fill pile-o-gram
+      timer.Start();
+      FillPileogram(read_pairs);
+      std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
+                << contigs.size() << " "
+                << timer.Stop() << "s"
+                << std::endl;
+      
+      // discard read pair
+      read_pairs.clear();
+    } 
+  }
+
+  if (bytes < (1ULL << 32) && bytes != 0) {
+    // wait for futures
+    for (auto& it : futures) {
+      // if it == empty , discard
+      auto result = it.get();
+      if (result.first.compare("empty") != 0) {
+        read_pairs.insert(result);
+      }
+    }
+    std::cerr << "[tarantula::Construct] Number of good read pair: "
+              << read_pairs.size() << " "
+              << timer.Stop() << "s"
+              << std::endl;
+    
+    // fill pile-o-gram
+    timer.Start();
+    FillPileogram(read_pairs);
+    std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
+              << contigs.size() << " "
+              << timer.Stop() << "s"
+              << std::endl;
+    
+    // discard read pair 
+    read_pairs.clear();
+  }
   return;
 }
 
@@ -123,26 +147,11 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
   std::unordered_map<std::uint32_t, Node>::iterator found;
   std::pair<std::uint32_t, std::uint32_t> overlap;
   std::uint32_t min_overlap = UINT32_MAX, max_overlap = 0, average_overlap = 0;
-
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
   // find the contig, then add layer to pileogram
-  std::size_t bytes = 0;
   for (const auto& rp : read_pairs) {
-    if (bytes >= (1ULL << 32)) {
-      // do overlap
-      for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
-        found = contigs.find(overlap_map_iter->first);
-        found->second.pileogram.AddLayer(overlap_map_iter->second);
-      }
-      // clear the overlap_map
-      overlap_map.clear();
-      // reset byte
-      bytes = 0;
-    }
-
     found = contigs.find(rp.second[0][0].rhs_id);
-    bytes += found->second.len;
     if (found == contigs.end()) {
       // not found
       std::cerr << "ERROR contig not found" << std::endl;
@@ -164,6 +173,10 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
         overlap_map_iter->second.emplace_back(overlap);
       }
     }
+  }
+  for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
+    found = contigs.find(overlap_map_iter->first);
+    found->second.pileogram.AddLayer(overlap_map_iter->second);
   }
   average_overlap /= read_pairs.size();
   std::cerr << "[tarantula::Construct] Stats: " << std::endl;
