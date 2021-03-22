@@ -60,9 +60,9 @@ class Graph {
     std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     std::unique_ptr<biosoup::NucleicAcid>& sequence2);
 
-  std::tuple<std::uint32_t, std::uint32_t> GetOverlap(
+  std::pair<std::uint32_t, std::uint32_t> GetOverlap(
     biosoup::Overlap ol1,
-    biosoup::Overlap ol2);
+    biosoup::Overlap ol2); 
 
   void FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);

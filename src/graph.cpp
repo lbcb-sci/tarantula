@@ -81,7 +81,7 @@ void Graph::Construct(
   }
 
   std::cerr << "[tarantula::Construct] Number of good read pair: "
-            << read_pairs.size()
+            << read_pairs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
 
@@ -98,14 +98,14 @@ void Graph::Construct(
   // then create pilo-o-gram per contig
   CreateGraph(targets);
   std::cerr << "[tarantula::Construct] Graph created, number of nodes: "
-            << contigs.size()
+            << contigs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
 
   timer.Start();
   FillPileogram(read_pairs);
   std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
-            << contigs.size()
+            << contigs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
   return;
@@ -121,11 +121,28 @@ void Graph::CreateGraph(
 
 void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs) {  // NOLINT
   std::unordered_map<std::uint32_t, Node>::iterator found;
-  std::tuple<std::uint32_t, std::uint32_t> overlap;
+  std::pair<std::uint32_t, std::uint32_t> overlap;
   std::uint32_t min_overlap = UINT32_MAX, max_overlap = 0, average_overlap = 0;
+
+  std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
+  std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
   // find the contig, then add layer to pileogram
+  std::size_t bytes = 0;
   for (const auto& rp : read_pairs) {
+    if (bytes >= (1ULL << 32)) {
+      // do overlap
+      for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
+        found = contigs.find(overlap_map_iter->first);
+        found->second.pileogram.AddLayer(overlap_map_iter->second);
+      }
+      // clear the overlap_map
+      overlap_map.clear();
+      // reset byte
+      bytes = 0;
+    }
+
     found = contigs.find(rp.second[0][0].rhs_id);
+    bytes += found->second.len;
     if (found == contigs.end()) {
       // not found
       std::cerr << "ERROR contig not found" << std::endl;
@@ -135,7 +152,17 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       min_overlap = (length < min_overlap) ? length:min_overlap;
       max_overlap = (length > max_overlap) ? length:max_overlap;
       average_overlap += length;
-      found->second.pileogram.AddLayer(std::get<0>(overlap), std::get<1>(overlap));
+
+      // throw into overlap map
+      overlap_map_iter = overlap_map.find(rp.second[0][0].rhs_id);
+      if (overlap_map_iter == overlap_map.end()) {
+        // not found, create map
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> temp;
+        temp.emplace_back(overlap);
+        overlap_map.insert(std::make_pair(rp.second[0][0].rhs_id, temp));
+      } else {
+        overlap_map_iter->second.emplace_back(overlap);
+      }
     }
   }
   average_overlap /= read_pairs.size();
@@ -145,10 +172,10 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
   std::cerr << "[tarantula::Construct] average overlap: " << average_overlap << std::endl;
 }
 
-std::tuple<std::uint32_t, std::uint32_t> Graph::GetOverlap(
+std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(
     biosoup::Overlap ol1,
     biosoup::Overlap ol2) {
-  return std::make_tuple(
+  return std::make_pair(
       std::min(ol1.rhs_begin, ol2.rhs_begin),
       std::max(ol1.rhs_end,   ol2.rhs_end));
 }

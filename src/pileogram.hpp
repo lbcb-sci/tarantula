@@ -5,6 +5,8 @@
 
 #include <cstdint>
 #include <vector>
+#include <tuple>
+#include <utility>
 
 #include "biosoup/overlap.hpp"
 #include "cereal/types/vector.hpp"
@@ -26,6 +28,9 @@ class Pileogram {
 
   void AddLayer(std::vector<biosoup::Overlap> overlap);
   void AddLayer(std::uint32_t begin, std::uint32_t end);
+
+  //for optimise
+  void AddLayer(std::vector<std::pair<std::uint32_t, std::uint32_t>>& overlaps);
 
   template<class Archive>
   void serialize(Archive& archive) {  // NOLINT
