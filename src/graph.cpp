@@ -80,7 +80,7 @@ void Graph::Construct(
       continue;
     }
     // less than 4GB
-    if (bytes >= (1ULL << 32)) {
+    if (bytes >= (1ULL << 32) && i >= sequences.size()-1) {
       // wait for futures
       for (auto& it : futures) {
         // if it == empty , discard
@@ -104,33 +104,8 @@ void Graph::Construct(
       
       // discard read pair
       read_pairs.clear();
+      futures.clear();
     } 
-  }
-
-  if (bytes < (1ULL << 32) && bytes != 0) {
-    // wait for futures
-    for (auto& it : futures) {
-      // if it == empty , discard
-      auto result = it.get();
-      if (result.first.compare("empty") != 0) {
-        read_pairs.insert(result);
-      }
-    }
-    std::cerr << "[tarantula::Construct] Number of good read pair: "
-              << read_pairs.size() << " "
-              << timer.Stop() << "s"
-              << std::endl;
-    
-    // fill pile-o-gram
-    timer.Start();
-    FillPileogram(read_pairs);
-    std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
-              << contigs.size() << " "
-              << timer.Stop() << "s"
-              << std::endl;
-    
-    // discard read pair 
-    read_pairs.clear();
   }
   return;
 }
