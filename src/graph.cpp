@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "biosoup/timer.hpp"
 #include "cereal/archives/json.hpp"
 
 std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
@@ -57,6 +58,9 @@ void Graph::Construct(
   std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>> futures;
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
 
+  biosoup::Timer timer;
+  timer.Start();
+
   for (std::uint32_t i=0; i< sequences.size()-1; i++) {
     if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
       num_pair+=1;
@@ -78,6 +82,7 @@ void Graph::Construct(
 
   std::cerr << "[tarantula::Construct] Number of good read pair: "
             << read_pairs.size()
+            << timer.Stop() << "s"
             << std::endl;
 
   for (auto const& rp : read_pairs) {
@@ -89,15 +94,19 @@ void Graph::Construct(
     }
   }
 
+  timer.Start();
   // then create pilo-o-gram per contig
   CreateGraph(targets);
   std::cerr << "[tarantula::Construct] Graph created, number of nodes: "
             << contigs.size()
+            << timer.Stop() << "s"
             << std::endl;
 
+  timer.Start();
   FillPileogram(read_pairs);
   std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
             << contigs.size()
+            << timer.Stop() << "s"
             << std::endl;
   return;
 }
@@ -105,12 +114,9 @@ void Graph::Construct(
 // technically this also can be multi-thread - just remove the for loop
 void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
-  // go thru all the read pair and then create node?
-  std::cerr << "create graph" << std::endl;
   for (auto const& target : targets) {
     contigs.emplace(target->id, Node(target->id, target->inflated_len));
   }
-  std::cerr << "create graph end" << std::endl;
 }
 
 void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs) {  // NOLINT
