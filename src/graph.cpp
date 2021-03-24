@@ -57,6 +57,7 @@ void Graph::Construct(
 
   std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>> futures;
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> interchromosome_read_pairs;
   biosoup::Timer timer;
 
   timer.Start();
@@ -66,7 +67,6 @@ void Graph::Construct(
             << contigs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
-  
   // filter pair + create pile-o-gram + less than 4GB
   timer.Start();
   std::size_t bytes = 0;
@@ -85,7 +85,9 @@ void Graph::Construct(
       for (auto& it : futures) {
         // if it == empty , discard
         auto result = it.get();
-        if (result.first.compare("empty") != 0) {
+        if (result.first.compare("interchromosome") == 0) {
+          interchromosome_read_pairs.insert(result);
+        } else if (result.first.compare("empty") != 0) {
           read_pairs.insert(result);
         }
       }
@@ -93,7 +95,7 @@ void Graph::Construct(
           << read_pairs.size() << " "
           << timer.Stop() << "s"
           << std::endl;
-      
+
       // fill pile-o-gram
       timer.Start();
       FillPileogram(read_pairs);
@@ -101,12 +103,20 @@ void Graph::Construct(
                 << contigs.size() << " "
                 << timer.Stop() << "s"
                 << std::endl;
- 
+      
       // discard read pair
       read_pairs.clear();
       futures.clear();
       bytes = 0;
     }
+  }
+  CalcualteInterChromosomeLinks(interchromosome_read_pairs);
+
+  for (const auto& contig : contigs) {
+    std::cerr << "Contig =" << contig.first
+              << " Intrachromosome links =" << contig.second.intrachromosome_links
+              << " Interchromosome links =" << contig.second.interchromosome_links
+              << std::endl;
   }
   return;
 }
@@ -116,6 +126,25 @@ void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   for (auto const& target : targets) {
     contigs.emplace(target->id, Node(target->id, target->inflated_len));
+  }
+}
+
+void Graph::CalcualteInterChromosomeLinks(
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs) {
+  std::unordered_map<std::uint32_t, Node>::iterator found;
+  for (const auto& rp : interchromsome_read_pairs) {
+    found = contigs.find(rp.second[0][0].rhs_id);
+    if (found == contigs.end()) {
+      std::cerr << "ERROR contig not found" << std::endl;
+    } else {
+      found->second.interchromosome_links++;
+    }
+    found = contigs.find(rp.second[1][0].rhs_id);
+    if (found == contigs.end()) {
+      std::cerr << "ERROR contig not found" << std::endl;
+    } else {
+      found->second.interchromosome_links++;
+    }
   }
 }
 
@@ -132,6 +161,7 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       // not found
       std::cerr << "ERROR contig not found" << std::endl;
     } else {
+      found->second.intrachromosome_links++;
       overlap = GetOverlap(rp.second[0][0], rp.second[1][0]);
       auto length = std::get<1>(overlap) - std::get<0>(overlap);
       min_overlap = (length < min_overlap) ? length:min_overlap;
@@ -219,8 +249,8 @@ void Graph::Process(
       }
 
       if (minimizer_result[0][0].rhs_id != minimizer_result[1][0].rhs_id) {
-        minimizer_result.clear();
-        return {"empty", minimizer_result};
+        // interchromosome
+        return {"interchromosome", minimizer_result};
       }
 
       // return pair

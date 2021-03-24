@@ -24,10 +24,14 @@ struct Node{
   uint32_t id;
   uint32_t len;
   Pileogram pileogram;
+  uint32_t interchromosome_links;
+  uint32_t intrachromosome_links;
   Node(uint32_t id, uint32_t len)
       : id(id),
         len(len),
-        pileogram(id, len) {}
+        pileogram(id, len),
+        interchromosome_links(0), 
+        intrachromosome_links(0) {}
 
   Node(const Node&) = default;
   Node& operator=(const Node&) = default;
@@ -68,6 +72,9 @@ class Graph {
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
   void PrintJson(const std::string& path) const;
+
+  void CalcualteInterChromosomeLinks(
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
 
  private:
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
