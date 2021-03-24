@@ -103,7 +103,7 @@ void Graph::Construct(
                 << contigs.size() << " "
                 << timer.Stop() << "s"
                 << std::endl;
-      
+
       // discard read pair
       read_pairs.clear();
       futures.clear();
@@ -111,13 +111,18 @@ void Graph::Construct(
     }
   }
   CalcualteInterChromosomeLinks(interchromosome_read_pairs);
-
+  uint32_t sum_interchromosome_links =0, sum_intrachromosome_links=0; 
   for (const auto& contig : contigs) {
-    std::cerr << "Contig =" << contig.first
-              << " Intrachromosome links =" << contig.second.intrachromosome_links
-              << " Interchromosome links =" << contig.second.interchromosome_links
+    sum_interchromosome_links += contig.second.interchromosome_links; 
+    sum_intrachromosome_links += contig.second.intrachromosome_links; 
+    std::cerr << "Contig = " << contig.first
+              << " Intrachromosome links = " << contig.second.intrachromosome_links
+              << " Interchromosome links = " << contig.second.interchromosome_links
               << std::endl;
   }
+  std::cerr << "Total Interchromosome links = " << sum_interchromosome_links 
+            << "Total Intrachromosome links = " << sum_intrachromosome_links
+            << std::endl; 
   return;
 }
 
