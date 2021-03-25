@@ -56,6 +56,7 @@ void Graph::Construct(
   }
 
   std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>> futures;
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> multiple_overlap_read_pairs; 
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> interchromosome_read_pairs;
   biosoup::Timer timer;
@@ -87,9 +88,11 @@ void Graph::Construct(
         auto result = it.get();
         if (result.first.compare("interchromosome") == 0) {
           interchromosome_read_pairs.insert(result);
+        } else if (result.first.compare("multiple") == 0 ) {
+          multiple_overlap_read_pairs.insert(result); 
         } else if (result.first.compare("empty") != 0) {
           read_pairs.insert(result);
-        }
+        } 
       }
       std::cerr << "[tarantula::Construct] Number of good read pair: "
           << read_pairs.size() << " "
@@ -111,7 +114,7 @@ void Graph::Construct(
     }
   }
   CalcualteInterChromosomeLinks(interchromosome_read_pairs);
-  uint32_t sum_interchromosome_links =0, sum_intrachromosome_links=0; 
+  uint32_t sum_interchromosome_links = 0, sum_intrachromosome_links = 0; 
   for (const auto& contig : contigs) {
     sum_interchromosome_links += contig.second.interchromosome_links; 
     sum_intrachromosome_links += contig.second.intrachromosome_links; 
@@ -120,9 +123,25 @@ void Graph::Construct(
               << " Interchromosome links = " << contig.second.interchromosome_links
               << std::endl;
   }
-  std::cerr << "Total Interchromosome links = " << sum_interchromosome_links 
-            << "Total Intrachromosome links = " << sum_intrachromosome_links
+  std::cerr << "Total Intrachromosome links = " << sum_intrachromosome_links
+            << " Total Interchromosome links = " << sum_interchromosome_links 
             << std::endl; 
+  
+  for (const auto& rp : multiple_overlap_read_pairs){
+    std::cerr << "read pair: " << rp.first
+              << " id: " << rp.second[0][0].lhs_id
+              << std::endl; 
+    
+    for (const auto& overlaps : rp.second){
+      for (const auto& overlap : overlaps){
+        std::cerr << "rhs id: " << overlap.rhs_id
+                  << " begin: " << overlap.rhs_begin
+                  << " end: " << overlap.rhs_end
+                  << std::endl;
+      }
+    }
+  
+  }
   return;
 }
 
@@ -240,22 +259,21 @@ void Graph::Process(
           }
           if (numLR > 1) {
             // if there are more than 1 long read discard
-            minimizer_result.clear();
-            return {"empty", minimizer_result};
+            return {sequence1->name + "_mulitple", minimizer_result};
           }
         }
         if (numLR == 0) {
           // dicard too because all are short reads
-          minimizer_result.clear();
-          return {"empty", minimizer_result};
+          return {sequence1->name + "_multiple", minimizer_result};
         }
+
         rp.clear();
         rp.emplace_back(temp);
       }
 
       if (minimizer_result[0][0].rhs_id != minimizer_result[1][0].rhs_id) {
         // interchromosome
-        return {"interchromosome", minimizer_result};
+        return {sequence1->name + "_interchromosome", minimizer_result};
       }
 
       // return pair
