@@ -86,9 +86,9 @@ void Graph::Construct(
       for (auto& it : futures) {
         // if it == empty , discard
         auto result = it.get();
-        if (result.first.compare("interchromosome") == 0) {
+        if (result.first.find("_interchromosome") != std::string::npos) {
           interchromosome_read_pairs.insert(result);
-        } else if (result.first.compare("multiple") == 0 ) {
+        } else if (result.first.find("_multiple") != std::string::npos ) {
           multiple_overlap_read_pairs.insert(result); 
         } else if (result.first.compare("empty") != 0) {
           read_pairs.insert(result);
@@ -124,24 +124,25 @@ void Graph::Construct(
               << std::endl;
   }
   std::cerr << "Total Intrachromosome links = " << sum_intrachromosome_links
-            << " Total Interchromosome links = " << sum_interchromosome_links 
+            << " Total Interchromosome links = " << sum_interchromosome_links/2
             << std::endl; 
   
+  std::ofstream myfile;
+  myfile.open ("log.txt");
   for (const auto& rp : multiple_overlap_read_pairs){
-    std::cerr << "read pair: " << rp.first
-              << " id: " << rp.second[0][0].lhs_id
-              << std::endl; 
+    myfile << "read pair: " << rp.first
+           << " id: " << rp.second[0][0].lhs_id << "\n";
     
     for (const auto& overlaps : rp.second){
       for (const auto& overlap : overlaps){
-        std::cerr << "rhs id: " << overlap.rhs_id
-                  << " begin: " << overlap.rhs_begin
-                  << " end: " << overlap.rhs_end
-                  << std::endl;
+        myfile << " rhs id: " << overlap.rhs_id
+               << " begin: " << overlap.rhs_begin
+               << " end: " << overlap.rhs_end << "\n"; 
       }
     }
   
   }
+  myfile.close();
   return;
 }
 
@@ -204,10 +205,12 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       }
     }
   }
+  std::cerr << "start add layer" << std::endl; 
   for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
     found = contigs.find(overlap_map_iter->first);
     found->second.pileogram.AddLayer(overlap_map_iter->second);
   }
+  std::cerr << "end add layer" << std::endl;
   average_overlap /= read_pairs.size();
   std::cerr << "[tarantula::Construct] Stats: " << std::endl;
   std::cerr << "[tarantula::Construct] min overlap: " << min_overlap << std::endl;
@@ -259,7 +262,7 @@ void Graph::Process(
           }
           if (numLR > 1) {
             // if there are more than 1 long read discard
-            return {sequence1->name + "_mulitple", minimizer_result};
+            return {sequence1->name + "_multiple", minimizer_result};
           }
         }
         if (numLR == 0) {
