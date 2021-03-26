@@ -56,7 +56,7 @@ void Graph::Construct(
   }
 
   std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>> futures;
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> multiple_overlap_read_pairs; 
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> multiple_overlap_read_pairs;
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> interchromosome_read_pairs;
   biosoup::Timer timer;
@@ -88,11 +88,11 @@ void Graph::Construct(
         auto result = it.get();
         if (result.first.find("_interchromosome") != std::string::npos) {
           interchromosome_read_pairs.insert(result);
-        } else if (result.first.find("_multiple") != std::string::npos ) {
-          multiple_overlap_read_pairs.insert(result); 
+        } else if (result.first.find("_multiple") != std::string::npos) {
+          multiple_overlap_read_pairs.insert(result);
         } else if (result.first.compare("empty") != 0) {
           read_pairs.insert(result);
-        } 
+        }
       }
       std::cerr << "[tarantula::Construct] Number of good read pair: "
           << read_pairs.size() << " "
@@ -114,10 +114,41 @@ void Graph::Construct(
     }
   }
   CalcualteInterChromosomeLinks(interchromosome_read_pairs);
-  uint32_t sum_interchromosome_links = 0, sum_intrachromosome_links = 0; 
+  uint32_t sum_interchromosome_links = 0, sum_intrachromosome_links = 0;
+  int num_chromosomes = targets.size();
+  std::vector<std::vector<std::uint32_t>> matrix(num_chromosomes, std::vector<std::uint32_t>(num_chromosomes));
+  std::unordered_map<std::uint32_t, Node>::iterator it;
+  GenerateMatrix(matrix, interchromosome_read_pairs);
+
+  std::ofstream myfile;
+  myfile.open("matrix.csv");
+
+  std::string output = ",";
+  for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
+    output += std::to_string(i) + ",";
+  }
+  output += "Total\n";
+  std::cerr << output << std::endl;
+  myfile << output;
+
+  for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
+    output ="";
+    output += std::to_string(i) + ",";
+    for (int r = 0; r < static_cast<int>(matrix[i].size()); r++) {
+      output += std::to_string(matrix[i][r]) + ",";
+    }
+    it = contigs.find(i);
+    if (it != contigs.end()) {
+      output += std::to_string(it->second.interchromosome_links)+"\n";
+    }
+    myfile << output;
+    std::cerr << output << std::endl;
+  }
+  myfile.close();
+
   for (const auto& contig : contigs) {
-    sum_interchromosome_links += contig.second.interchromosome_links; 
-    sum_intrachromosome_links += contig.second.intrachromosome_links; 
+    sum_interchromosome_links += contig.second.interchromosome_links;
+    sum_intrachromosome_links += contig.second.intrachromosome_links;
     std::cerr << "Contig = " << contig.first
               << " Intrachromosome links = " << contig.second.intrachromosome_links
               << " Interchromosome links = " << contig.second.interchromosome_links
@@ -125,8 +156,9 @@ void Graph::Construct(
   }
   std::cerr << "Total Intrachromosome links = " << sum_intrachromosome_links
             << " Total Interchromosome links = " << sum_interchromosome_links/2
-            << std::endl; 
+            << std::endl;
   
+  /*
   std::ofstream myfile;
   myfile.open ("log.txt");
   for (const auto& rp : multiple_overlap_read_pairs){
@@ -142,7 +174,7 @@ void Graph::Construct(
     }
   
   }
-  myfile.close();
+  myfile.close();*/
   return;
 }
 
@@ -151,6 +183,22 @@ void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   for (auto const& target : targets) {
     contigs.emplace(target->id, Node(target->id, target->inflated_len));
+  }
+}
+
+void Graph::GenerateMatrix(
+  std::vector<std::vector<std::uint32_t>> &matrix, 
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs) {
+  for (const auto& rp : interchromsome_read_pairs) {
+    auto id_1 = rp.second[0][0].rhs_id;
+    auto id_2 = rp.second[1][0].rhs_id;
+    matrix[id_1][id_2] += 1;
+    matrix[id_2][id_1] += 1;
+  }
+
+  for (const auto& contig : contigs) {
+    auto id = contig.first;
+    matrix[id][id] = contig.second.intrachromosome_links;
   }
 }
 
@@ -205,12 +253,10 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       }
     }
   }
-  std::cerr << "start add layer" << std::endl; 
   for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
     found = contigs.find(overlap_map_iter->first);
     found->second.pileogram.AddLayer(overlap_map_iter->second);
   }
-  std::cerr << "end add layer" << std::endl;
   average_overlap /= read_pairs.size();
   std::cerr << "[tarantula::Construct] Stats: " << std::endl;
   std::cerr << "[tarantula::Construct] min overlap: " << min_overlap << std::endl;

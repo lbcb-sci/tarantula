@@ -76,6 +76,10 @@ class Graph {
   void CalcualteInterChromosomeLinks(
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
 
+  void GenerateMatrix(
+    std::vector<std::vector<std::uint32_t>> &matrix, 
+    std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
+
  private:
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
   std::unordered_map<std::uint32_t, Node> contigs;
