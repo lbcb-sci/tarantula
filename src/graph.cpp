@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <queue>
 
 #include "biosoup/timer.hpp"
 #include "cereal/archives/json.hpp"
@@ -128,7 +129,6 @@ void Graph::Construct(
     output += std::to_string(i) + ",";
   }
   output += "Total\n";
-  std::cerr << output << std::endl;
   myfile << output;
 
   for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
@@ -142,22 +142,48 @@ void Graph::Construct(
       output += std::to_string(it->second.interchromosome_links)+"\n";
     }
     myfile << output;
-    std::cerr << output << std::endl;
   }
   myfile.close();
 
   for (const auto& contig : contigs) {
     sum_interchromosome_links += contig.second.interchromosome_links;
     sum_intrachromosome_links += contig.second.intrachromosome_links;
-    std::cerr << "Contig = " << contig.first
+    std::cerr << "[tarantula::Construct] Contig = " << contig.first
               << " Intrachromosome links = " << contig.second.intrachromosome_links
               << " Interchromosome links = " << contig.second.interchromosome_links
               << std::endl;
   }
-  std::cerr << "Total Intrachromosome links = " << sum_intrachromosome_links
+  std::cerr << "[tarantula::Construct] Total Intrachromosome links = " 
+            << sum_intrachromosome_links
             << " Total Interchromosome links = " << sum_interchromosome_links/2
             << std::endl;
-  
+
+  // find component & only draw components that have >= 3 nodes
+  std::vector<std::vector<std::uint32_t>> components = GetComponents(matrix);
+  for (int it = 0; it < static_cast<int>(components.size()); it++) {
+    if (components[it].size() <= 2)
+      continue;
+    myfile.open("component_" + std::to_string(it) + ".txt");
+    for (int i = 0; i < static_cast<int>(components[it].size()); i++) {
+      for (int r = 0; r < i; r++) {
+        if (matrix[components[it][i]][components[it][r]] != 0)
+          myfile << i << "--" << r << "," << matrix[components[it][i]][components[it][r]] << "\n";
+      }
+    }
+    myfile.close();
+  }
+
+  // create text file to visualise graph
+  myfile.open("graph.txt");
+  for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
+    for (int r = 0; r < i; r++) {
+      if (matrix[i][r] != 0)
+        myfile << i << "--" << r << "," << matrix[i][r] << "\n";
+    }
+  }
+  myfile.close();
+
+  // get pairs are discarded because there is multiple overlap
   /*
   std::ofstream myfile;
   myfile.open ("log.txt");
@@ -187,7 +213,7 @@ void Graph::CreateGraph(
 }
 
 void Graph::GenerateMatrix(
-  std::vector<std::vector<std::uint32_t>> &matrix, 
+  std::vector<std::vector<std::uint32_t>> &matrix,
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs) {
   for (const auto& rp : interchromsome_read_pairs) {
     auto id_1 = rp.second[0][0].rhs_id;
@@ -331,6 +357,35 @@ void Graph::Process(
     std::ref(minimizer_engine),
     std::cref(sequence1),
     std::cref(sequence2)));
+}
+
+std::vector<std::vector<uint32_t>> Graph::GetComponents(std::vector<std::vector<std::uint32_t>> &matrix) {
+  std::vector<std::vector<uint32_t>> components;
+  std::queue<uint32_t> q;
+  std::vector<bool> is_visited(contigs.size(), 0);
+  for (int r = 0; r < static_cast<int>(contigs.size()); r++) {
+    std::vector<uint32_t> temp;
+    if (!is_visited[r]) {
+      q.push(r);
+    }
+    while (!q.empty()) {
+      uint32_t node = q.front();
+      q.pop();
+      if (is_visited[node]) {
+        continue;
+      }
+
+      for (int i = 0; i < static_cast<int>(matrix[node].size()); i++) {
+        if ((matrix[node][i] != 0 && static_cast<int>(node) != i) && !is_visited[i])
+          q.push(i);
+      }
+      is_visited[node] = true;
+      temp.emplace_back(node);
+    }
+    if (temp.size()!= 0)
+      components.push_back(temp);
+  }
+  return components;
 }
 
 void Graph::PrintJson(const std::string& path) const {

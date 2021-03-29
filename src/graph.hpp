@@ -57,6 +57,13 @@ class Graph {
   void Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
+  
+  void PrintJson(const std::string& path) const;
+
+ private:
+  std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
+  std::unordered_map<std::uint32_t, Node> contigs;
+  std::vector<std::vector<std::uint32_t>> adjMatrix;
 
   void Process(
     std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>>& futures,
@@ -71,18 +78,14 @@ class Graph {
   void FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
-  void PrintJson(const std::string& path) const;
-
   void CalcualteInterChromosomeLinks(
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
 
   void GenerateMatrix(
     std::vector<std::vector<std::uint32_t>> &matrix, 
     std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
-
- private:
-  std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
-  std::unordered_map<std::uint32_t, Node> contigs;
+  
+  std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
 };
 
 }  // namespace tarantula
