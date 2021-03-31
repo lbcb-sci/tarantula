@@ -3,6 +3,8 @@
 #ifndef TARANTULA_GRAPH_HPP_
 #define TARANTULA_GRAPH_HPP_
 
+#include <math.h>
+
 #include <memory>
 #include <unordered_map>
 #include <tuple>
@@ -20,18 +22,45 @@
 
 namespace tarantula {
 
+struct Window{
+  uint32_t id;
+  uint32_t interchromosome_links;
+  Window(uint32_t id)
+    : id(id),
+      interchromosome_links(0) {}
+  
+  Window(const Window&) = default;
+  Window& operator=(const Window&) = default;
+
+  Window(Window&&) = default;
+  Window& operator=(Window&&) = default;
+
+  ~Window() = default;
+};
+
 struct Node{
   uint32_t id;
   uint32_t len;
   Pileogram pileogram;
   uint32_t interchromosome_links;
   uint32_t intrachromosome_links;
+  uint32_t link_0011;
+  uint32_t link_0110;
+  std::vector<Window> windows;
   Node(uint32_t id, uint32_t len)
       : id(id),
         len(len),
         pileogram(id, len),
         interchromosome_links(0), 
-        intrachromosome_links(0) {}
+        intrachromosome_links(0),
+        link_0011(0),
+        link_0110(0) {
+          int size = ceil(len/10000);
+          for (int i = 0; i <= size; i++) {
+            Window w(i);
+            windows.push_back(w);
+          }
+        }
 
   Node(const Node&) = default;
   Node& operator=(const Node&) = default;
@@ -85,7 +114,13 @@ class Graph {
     std::vector<std::vector<std::uint32_t>> &matrix, 
     std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
   
+  std::vector<int> GenerateMatrixWindow(
+    std::vector<std::vector<std::uint32_t>> &matrix,
+    std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
+  
   std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
+
+  int GetNumWindows();
 };
 
 }  // namespace tarantula
