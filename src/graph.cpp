@@ -158,25 +158,23 @@ void Graph::Construct(
   }
   myfile.close();
 
-  /*
+  
   // write matrix of interchromosome links in each windows to csv
-  int sum=0;
+  int sum = 0;
   myfile.open("contig_window_links.txt");
-  for (auto contig : contigs){
-    for (auto window : contig.second.windows){
+  for (auto contig : contigs) {
+    for (auto window : contig.second.windows) {
       myfile <<  "contig = " << contig.first << " , window = " << window.id << ", links = " << window.interchromosome_links << "\n";
       sum+=window.interchromosome_links;
     }
   }
   myfile.close();
-  std::cerr << "total window links" << sum << std::endl;
 
-  
   int total_windows = GetNumWindows();
-  std::cerr << "number of windows = " << total_windows;
-  std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows,0));
+  std::cerr << "[tarantula::Construct] Number of windows = " << total_windows << std::endl;
+  std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
   std::vector<int> window_id_map = GenerateMatrixWindow(window_matrix, interchromosome_read_pairs);
-  std::cerr << "after generation of window matrix" << std::endl;
+  std::cerr << "[tarantula::Construct] Generation of window matrix done" << std::endl;
   myfile.open("window_matrix.csv");
   
   output = ",";
@@ -194,13 +192,10 @@ void Graph::Construct(
       output += "," + std::to_string(window_matrix[i][r]);
       sum += window_matrix[i][r];
     }
-    
     output += "," + std::to_string(sum)+"\n";
-
-    //std::cerr << "output: " << output << std::endl;
     myfile << output;
   }
-  myfile.close();*/
+  myfile.close();
 
   for (const auto& contig : contigs) {
     sum_interchromosome_links += contig.second.interchromosome_links;
@@ -240,15 +235,30 @@ void Graph::Construct(
   }
   myfile.close();
 
-  // find component & only draw components that have >= 3 nodes (BY WINDOW) -- some error here
-  /*std::vector<std::vector<std::uint32_t>> window_components = GetComponents(window_matrix);
-  std::cerr << "number of components: " <<  window_components.size() << std::endl;
+  // find component & only draw components that have >= 3 nodes (BY WINDOW)
+
+  std::vector<std::vector<std::uint32_t>> window_components = GetComponents(window_matrix);
+  std::cerr << "[tarantula::Construct] Number of components: " <<  window_components.size() << std::endl;
   for (int it = 0; it < static_cast<int>(window_components.size()); it++) {
     if (window_components[it].size() <= 2)
       continue;
     myfile.open("window_component_" + std::to_string(it) + ".txt");
+    std::cerr << "[tarantula::Construct] number of window in this component: " << window_components[it].size() << std::endl;
+
+    // assume contig id is from 0 - contigs.size()-1
+
+    int window_in_contig = 0;
+    int counter = 1;
+    for (int i = 0; i < window_matrix.size(); i++) {
+      if (i >= window_id_map[counter]) {
+        window_in_contig++;
+        counter++;
+      }
+      myfile << i << " " << window_in_contig << "\n";
+    }
+    myfile << "%\n";
     for (int i = 0; i < static_cast<int>(window_components[it].size()); i++) {
-      for (int r = 0; r < i; r++) {
+      for (int r = i+1; r < static_cast<int>(window_components[it].size()); r++) {
         if (window_matrix[window_components[it][i]][window_components[it][r]] != 0)
           myfile << i << "--" << r << "," << window_matrix[window_components[it][i]][window_components[it][r]] << "\n";
       }
@@ -256,14 +266,24 @@ void Graph::Construct(
     myfile.close();
   }
 
+  int window_in_contig = 0;
+  int counter = 1;
   myfile.open("window_graph.txt");
+  for (int i = 0; i < window_matrix.size(); i++) {
+    if (i >= window_id_map[counter]) {
+      window_in_contig++;
+      counter++;
+    }
+    myfile << i << " " << window_in_contig << "\n";
+  }
+  myfile << "%\n";
   for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
     for (int r = 0; r < i; r++) {
       if (window_matrix[i][r] != 0)
         myfile << i << "--" << r << "," << window_matrix[i][r] << "\n";
     }
   }
-  myfile.close();*/
+  myfile.close();
 
   // get pairs are discarded because there is multiple overlap
   /*
@@ -318,25 +338,25 @@ std::vector<int> Graph::GenerateMatrixWindow(
   int extra = 0;
   // window_id_map, index == rhs_id
   int sum = 0;
-  std::cerr << "contig size: " << contigs.size() << std::endl;
+  std::cerr << "[tarantula::Construct] Number of contigs: " << contigs.size() << std::endl;
   for (int i = 0; i < contigs.size(); i++) {
     found = contigs.find(i);
     window_id_map[found->first] = sum;
-    std::cerr << i << " : window index start from = " << sum << std::endl;
+    std::cerr << "[tarantula::Construct] contig "<< i << " : window index start from = " << sum << std::endl;
     sum += found->second.windows.size();
   }
 
   for (const auto& rp : interchromsome_read_pairs) {
-    int window_index_begin_1 = rp.second[0][0].rhs_begin/10000;
-    int window_index_end_1 = rp.second[0][0].rhs_end/10000;
-    int window_index_begin_2 = rp.second[1][0].rhs_begin/10000;
-    int window_index_end_2 = rp.second[1][0].rhs_end/10000;
+    int window_index_begin_1 = rp.second[0][0].rhs_begin/100000;
+    int window_index_end_1 = rp.second[0][0].rhs_end/100000;
+    int window_index_begin_2 = rp.second[1][0].rhs_begin/100000;
+    int window_index_end_2 = rp.second[1][0].rhs_end/100000;
     int id_1 = rp.second[0][0].rhs_id;
     int id_2 = rp.second[1][0].rhs_id;
 
     int window_id_1_begin = window_index_begin_1+window_id_map[id_1];
     int window_id_2_begin = window_index_begin_2+window_id_map[id_2];
-    
+
     if (window_index_begin_1 != window_index_end_1) {
       int window_id_1_end = window_index_end_1 + window_id_map[id_1];
       if (window_index_begin_2 != window_index_end_2) {
@@ -357,7 +377,25 @@ std::vector<int> Graph::GenerateMatrixWindow(
     matrix[window_id_1_begin][window_id_2_begin] += 1;
     matrix[window_id_2_begin][window_id_1_begin] += 1;
   }
-  std::cerr << "Extra = " << extra << std::endl;
+
+  // link between windows in the same contig -- take the max interchromosome link
+  for (int i = 0; i < window_id_map.size(); i++) {
+    int id = window_id_map[i];
+    int max = *max_element(std::begin(matrix[id]), std::end(matrix[id]));
+    int next = i+1;
+    int end;
+    if (next != window_id_map.size()) {
+      end = window_id_map[next]-1;
+    } else {
+      end = matrix.size()-1;
+    }
+
+    for (int r = id; r < end; r++) {
+      matrix[r][r+1] = max;
+      matrix[r+1][r] = max;
+    }
+  }
+
   return window_id_map;
 }
 
@@ -370,8 +408,8 @@ void Graph::CalcualteInterChromosomeLinks(
   for (const auto& rp : interchromsome_read_pairs) {
     strand_1 = rp.second[0][0].strand;
     strand_2 = rp.second[1][0].strand;
-    window_index_begin = rp.second[0][0].rhs_begin/10000;
-    window_index_end = rp.second[0][0].rhs_end/10000;
+    window_index_begin = rp.second[0][0].rhs_begin/100000;
+    window_index_end = rp.second[0][0].rhs_end/100000;
   
     found = contigs.find(rp.second[0][0].rhs_id);
     if (found == contigs.end()) {
@@ -394,8 +432,8 @@ void Graph::CalcualteInterChromosomeLinks(
       std::cerr << "window size:" << found->second.windows.size() <<"window index: " << window_index_end << std::endl;
     }
 
-    window_index_begin = rp.second[1][0].rhs_begin/10000;
-    window_index_end = rp.second[1][0].rhs_end/10000;
+    window_index_begin = rp.second[1][0].rhs_begin/100000;
+    window_index_end = rp.second[1][0].rhs_end/100000;
     found = contigs.find(rp.second[1][0].rhs_id);
     if (found == contigs.end()) {
       std::cerr << "ERROR contig not found" << std::endl;
@@ -417,7 +455,6 @@ void Graph::CalcualteInterChromosomeLinks(
       std::cerr << "window size:" << found->second.windows.size() <<"window index: " << window_index_end << std::endl;
     }
   }
-  std::cerr << "extra=" << extra << std::endl;
 }
 
 void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs) {  // NOLINT

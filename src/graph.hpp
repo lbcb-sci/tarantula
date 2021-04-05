@@ -55,7 +55,7 @@ struct Node{
         intrachromosome_links(0),
         link_0011(0),
         link_0110(0) {
-          int size = ceil(len/10000);
+          int size = ceil(len/100000);
           for (int i = 0; i <= size; i++) {
             Window w(i);
             windows.push_back(w);
