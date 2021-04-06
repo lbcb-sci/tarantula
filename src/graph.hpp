@@ -25,9 +25,11 @@ namespace tarantula {
 struct Window{
   uint32_t id;
   uint32_t interchromosome_links;
+  uint32_t intrachromosome_links;
   Window(uint32_t id)
     : id(id),
-      interchromosome_links(0) {}
+      interchromosome_links(0),
+      intrachromosome_links(0) {}
   
   Window(const Window&) = default;
   Window& operator=(const Window&) = default;
@@ -93,7 +95,7 @@ class Graph {
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
   std::unordered_map<std::uint32_t, Node> contigs;
   std::vector<std::vector<std::uint32_t>> adjMatrix;
-
+  
   void Process(
     std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>>& futures,
     ram::MinimizerEngine& minimizer_engine,
@@ -107,6 +109,8 @@ class Graph {
   void FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
+  int GetNumWindows();
+
   void CalcualteInterChromosomeLinks(
   std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
 
@@ -114,13 +118,19 @@ class Graph {
     std::vector<std::vector<std::uint32_t>> &matrix, 
     std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
   
-  std::vector<int> GenerateMatrixWindow(
+  void GenerateMatrixWindowIntraLinks(
+    std::vector<int>& window_id_map,
+    std::vector<std::vector<std::uint32_t>> &matrix,
+    std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
+
+  void GenerateMatrixWindow(
+    std::vector<int>& window_id_map,
     std::vector<std::vector<std::uint32_t>> &matrix,
     std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
   
   std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
 
-  int GetNumWindows();
+  std::vector<int> GenerateMapWindowID();
 };
 
 }  // namespace tarantula

@@ -76,6 +76,11 @@ void Graph::Construct(
   std::ofstream inter, intra;
   inter.open("interchromosome_strand.txt");
   intra.open("intrachromosome_strand.txt");
+  std::vector<int> window_id_map = GenerateMapWindowID();
+  int total_windows = GetNumWindows();
+  std::cerr << "[tarantula::Construct] Number of windows = " << total_windows << std::endl;
+  std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
+
   for (std::uint32_t i=0; i< sequences.size()-1; i++) {
     if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
       num_pair+=1;
@@ -115,6 +120,9 @@ void Graph::Construct(
                 << contigs.size() << " "
                 << timer.Stop() << "s"
                 << std::endl;
+
+      // interwindow links
+      GenerateMatrixWindowIntraLinks(window_id_map, window_matrix, read_pairs);
 
       // discard read pair
       read_pairs.clear();
@@ -169,11 +177,7 @@ void Graph::Construct(
     }
   }
   myfile.close();
-
-  int total_windows = GetNumWindows();
-  std::cerr << "[tarantula::Construct] Number of windows = " << total_windows << std::endl;
-  std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
-  std::vector<int> window_id_map = GenerateMatrixWindow(window_matrix, interchromosome_read_pairs);
+  GenerateMatrixWindow(window_id_map, window_matrix, interchromosome_read_pairs);
   std::cerr << "[tarantula::Construct] Generation of window matrix done" << std::endl;
   myfile.open("window_matrix.csv");
   
@@ -235,15 +239,12 @@ void Graph::Construct(
   }
   myfile.close();
 
-  // find component & only draw components that have >= 3 nodes (BY WINDOW)
-
-  std::vector<std::vector<std::uint32_t>> window_components = GetComponents(window_matrix);
-  std::cerr << "[tarantula::Construct] Number of components: " <<  window_components.size() << std::endl;
-  for (int it = 0; it < static_cast<int>(window_components.size()); it++) {
-    if (window_components[it].size() <= 2)
+  // find component & only draw components that have >= 3 nodes (BY WINDOW)  -- error in get components, create new method for it
+  /*
+  for (int it = 0; it < static_cast<int>(components.size()); it++) {
+    if (components[it].size() <= 2)
       continue;
     myfile.open("window_component_" + std::to_string(it) + ".txt");
-    std::cerr << "[tarantula::Construct] number of window in this component: " << window_components[it].size() << std::endl;
 
     // assume contig id is from 0 - contigs.size()-1
 
@@ -257,14 +258,28 @@ void Graph::Construct(
       myfile << i << " " << window_in_contig << "\n";
     }
     myfile << "%\n";
-    for (int i = 0; i < static_cast<int>(window_components[it].size()); i++) {
-      for (int r = i+1; r < static_cast<int>(window_components[it].size()); r++) {
-        if (window_matrix[window_components[it][i]][window_components[it][r]] != 0)
-          myfile << i << "--" << r << "," << window_matrix[window_components[it][i]][window_components[it][r]] << "\n";
+    for (int i = 0; i < static_cast<int>(components[it].size()); i++) {
+      for (int r = 0; r < i; r++) {
+        int contig_id_1 = components[it][i];
+        int contig_id_2 = components[it][r];
+        for (int y = window_id_map[contig_id_1]; y < window_id_map[contig_id_1+1]; y++) {
+          for (int x = window_id_map[contig_id_2]; x < window_id_map[contig_id_2+1]; x++) {
+            if (window_matrix[y][x]!=0)
+              myfile << i << "--" << r << "," << window_matrix[y][x] << "\n";
+          }
+        }
+      }
+    }
+    // deal with all the links between windows in each contig
+    for (int i = 0; i < static_cast<int>(components[it].size()); i++) {
+      int contig_id = components[it][i];
+      for (int r = window_id_map[contig_id]; r < window_id_map[contig_id+1]-1; r++){
+        if (window_matrix[r][r+1]!=0)
+          myfile << i << "--" << r << "," << window_matrix[r][r+1] << "\n";
       }
     }
     myfile.close();
-  }
+  }*/
 
   int window_in_contig = 0;
   int counter = 1;
@@ -330,14 +345,11 @@ void Graph::GenerateMatrix(
   }
 }
 
-std::vector<int> Graph::GenerateMatrixWindow(
-  std::vector<std::vector<std::uint32_t>> &matrix,
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs) {
-  std::unordered_map<std::uint32_t, Node>::iterator found;
+std::vector<int> Graph::GenerateMapWindowID() {
   std::vector<int> window_id_map(contigs.size(), 0);
-  int extra = 0;
-  // window_id_map, index == rhs_id
+  std::unordered_map<std::uint32_t, Node>::iterator found;
   int sum = 0;
+
   std::cerr << "[tarantula::Construct] Number of contigs: " << contigs.size() << std::endl;
   for (int i = 0; i < contigs.size(); i++) {
     found = contigs.find(i);
@@ -345,6 +357,66 @@ std::vector<int> Graph::GenerateMatrixWindow(
     std::cerr << "[tarantula::Construct] contig "<< i << " : window index start from = " << sum << std::endl;
     sum += found->second.windows.size();
   }
+  return window_id_map;
+}
+
+void Graph::GenerateMatrixWindowIntraLinks(
+  std::vector<int>& window_id_map,
+  std::vector<std::vector<std::uint32_t>> &matrix,
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs){
+  int extra = 0;
+  int same = 0;
+  int extra_1 = 0;
+  for (const auto& rp: read_pairs) {
+    int window_index_begin_1 = rp.second[0][0].rhs_begin/100000;
+    int window_index_end_1 = rp.second[0][0].rhs_end/100000;
+    int window_index_begin_2 = rp.second[1][0].rhs_begin/100000;
+    int window_index_end_2 = rp.second[1][0].rhs_end/100000;
+    int window = window_id_map[rp.second[1][0].rhs_id];
+    int window_id_1 = window + window_index_begin_1;
+    int window_id_2 = window + window_index_begin_2;
+    int window_id_1_end = window + window_index_end_1;
+    int window_id_2_end = window + window_index_end_2;
+    if (window_id_2==window_id_1){
+      matrix[window_id_1][window_id_2]+=1;
+      if (rp.second[1][0].rhs_id==0)
+        same++;
+      continue;
+    }
+    //std::cerr << "window id: " << window_id_1 << " " << window_id_2 << std::endl;
+    if (window_index_begin_1!=window_index_end_1) {
+      if (window_index_begin_2!=window_index_end_2) {
+        matrix[window_id_1_end][window_id_2_end]+=1;
+        matrix[window_id_2_end][window_id_1_end]+=1;
+      } else {
+        matrix[window_id_1_end][window_id_2]+=1;
+        matrix[window_id_2][window_id_1_end]+=1;
+      }
+      extra++;
+      if (rp.second[1][0].rhs_id==0)
+        extra_1++;
+
+    } else if (window_index_begin_2!=window_index_end_2) {
+      matrix[window_id_2_end][window_id_1]+=1;
+      matrix[window_id_1][window_id_2_end]+=1;
+      extra++;
+      if (rp.second[1][0].rhs_id==0)
+        extra_1++;
+    }
+    matrix[window_id_1][window_id_2]+=1;
+    matrix[window_id_2][window_id_1]+=1;
+  }
+  std::cerr << "extra" << extra << std::endl;
+  std::cerr << "same window" << same << std::endl;
+  std::cerr << "extra_1" << extra_1 << std::endl;
+}
+
+void Graph::GenerateMatrixWindow(
+  std::vector<int>& window_id_map,
+  std::vector<std::vector<std::uint32_t>> &matrix,
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs) {
+  std::unordered_map<std::uint32_t, Node>::iterator found;
+  int extra = 0;
 
   for (const auto& rp : interchromsome_read_pairs) {
     int window_index_begin_1 = rp.second[0][0].rhs_begin/100000;
@@ -377,8 +449,9 @@ std::vector<int> Graph::GenerateMatrixWindow(
     matrix[window_id_1_begin][window_id_2_begin] += 1;
     matrix[window_id_2_begin][window_id_1_begin] += 1;
   }
-
+  
   // link between windows in the same contig -- take the max interchromosome link
+  /*
   for (int i = 0; i < window_id_map.size(); i++) {
     int id = window_id_map[i];
     int max = *max_element(std::begin(matrix[id]), std::end(matrix[id]));
@@ -394,9 +467,18 @@ std::vector<int> Graph::GenerateMatrixWindow(
       matrix[r][r+1] = max;
       matrix[r+1][r] = max;
     }
-  }
+  }*/
 
-  return window_id_map;
+  // intrachromosome links
+  /*
+  int counter = 0;
+  for (int i = 0; i < contigs.size(); i++) {
+    found = contigs.find(i);
+    int window_id = window_id_map[i];
+    for (int r = 0; r < found->second.windows.size(); r++) {
+      matrix[window_id+r][window_id+r] = found->second.windows[r].intrachromosome_links;
+    }
+  }*/
 }
 
 void Graph::CalcualteInterChromosomeLinks(
@@ -464,13 +546,36 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
   // find the contig, then add layer to pileogram
+  int extra=0;
   for (const auto& rp : read_pairs) {
     found = contigs.find(rp.second[0][0].rhs_id);
     if (found == contigs.end()) {
       // not found
       std::cerr << "ERROR contig not found" << std::endl;
     } else {
+      // update intrachromosome links
+      
       found->second.intrachromosome_links++;
+      /*
+      int window_1_begin = rp.second[0][0].rhs_begin/100000;
+      int window_2_begin = rp.second[1][0].rhs_begin/100000;
+      int window_1_end = rp.second[0][0].rhs_end/100000;
+      int window_2_end = rp.second[1][0].rhs_end/100000;
+
+      if (window_1_begin!=window_1_end){
+        found->second.windows[window_1_begin].intrachromosome_links++;
+        extra++;
+      }
+        
+      found->second.windows[window_1_end].intrachromosome_links++;
+
+      if (window_2_begin!=window_2_end){
+        found->second.windows[window_2_begin].intrachromosome_links++;
+        extra++;
+      }
+      found->second.windows[window_2_end].intrachromosome_links++;*/
+
+      // overlap
       overlap = GetOverlap(rp.second[0][0], rp.second[1][0]);
       auto length = std::get<1>(overlap) - std::get<0>(overlap);
       min_overlap = (length < min_overlap) ? length:min_overlap;
@@ -489,6 +594,7 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       }
     }
   }
+  std::cerr << "[tarantula::Construct] Extra intrachromosome links between windows: " << extra << std::endl;
   for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
     found = contigs.find(overlap_map_iter->first);
     found->second.pileogram.AddLayer(overlap_map_iter->second);
@@ -570,9 +676,10 @@ void Graph::Process(
 }
 
 std::vector<std::vector<uint32_t>> Graph::GetComponents(std::vector<std::vector<std::uint32_t>> &matrix) {
+  std::cerr << "start get components" << std::endl;
   std::vector<std::vector<uint32_t>> components;
   std::queue<uint32_t> q;
-  std::vector<bool> is_visited(contigs.size(), 0);
+  std::vector<bool> is_visited(contigs.size(), false);
   for (int r = 0; r < static_cast<int>(contigs.size()); r++) {
     std::vector<uint32_t> temp;
     if (!is_visited[r]) {
@@ -590,11 +697,12 @@ std::vector<std::vector<uint32_t>> Graph::GetComponents(std::vector<std::vector<
           q.push(i);
       }
       is_visited[node] = true;
-      temp.emplace_back(node);
+      temp.push_back(node);
     }
     if (temp.size()!= 0)
       components.push_back(temp);
   }
+  std::cerr << "end get components" << std::endl;
   return components;
 }
 
