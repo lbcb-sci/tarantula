@@ -363,52 +363,19 @@ std::vector<int> Graph::GenerateMapWindowID() {
 void Graph::GenerateMatrixWindowIntraLinks(
   std::vector<int>& window_id_map,
   std::vector<std::vector<std::uint32_t>> &matrix,
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs){
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs) {
   int extra = 0;
   int same = 0;
   int extra_1 = 0;
-  for (const auto& rp: read_pairs) {
+  for (const auto& rp : read_pairs) {
     int window_index_begin_1 = rp.second[0][0].rhs_begin/100000;
-    int window_index_end_1 = rp.second[0][0].rhs_end/100000;
     int window_index_begin_2 = rp.second[1][0].rhs_begin/100000;
-    int window_index_end_2 = rp.second[1][0].rhs_end/100000;
     int window = window_id_map[rp.second[1][0].rhs_id];
     int window_id_1 = window + window_index_begin_1;
     int window_id_2 = window + window_index_begin_2;
-    int window_id_1_end = window + window_index_end_1;
-    int window_id_2_end = window + window_index_end_2;
-    if (window_id_2==window_id_1){
-      matrix[window_id_1][window_id_2]+=1;
-      if (rp.second[1][0].rhs_id==0)
-        same++;
-      continue;
-    }
-    //std::cerr << "window id: " << window_id_1 << " " << window_id_2 << std::endl;
-    if (window_index_begin_1!=window_index_end_1) {
-      if (window_index_begin_2!=window_index_end_2) {
-        matrix[window_id_1_end][window_id_2_end]+=1;
-        matrix[window_id_2_end][window_id_1_end]+=1;
-      } else {
-        matrix[window_id_1_end][window_id_2]+=1;
-        matrix[window_id_2][window_id_1_end]+=1;
-      }
-      extra++;
-      if (rp.second[1][0].rhs_id==0)
-        extra_1++;
-
-    } else if (window_index_begin_2!=window_index_end_2) {
-      matrix[window_id_2_end][window_id_1]+=1;
-      matrix[window_id_1][window_id_2_end]+=1;
-      extra++;
-      if (rp.second[1][0].rhs_id==0)
-        extra_1++;
-    }
     matrix[window_id_1][window_id_2]+=1;
     matrix[window_id_2][window_id_1]+=1;
   }
-  std::cerr << "extra" << extra << std::endl;
-  std::cerr << "same window" << same << std::endl;
-  std::cerr << "extra_1" << extra_1 << std::endl;
 }
 
 void Graph::GenerateMatrixWindow(
@@ -546,7 +513,7 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
   // find the contig, then add layer to pileogram
-  int extra=0;
+  int extra = 0;
   for (const auto& rp : read_pairs) {
     found = contigs.find(rp.second[0][0].rhs_id);
     if (found == contigs.end()) {
