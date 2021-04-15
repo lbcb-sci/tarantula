@@ -131,6 +131,9 @@ class Graph {
   std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
 
   std::vector<int> GenerateMapWindowID();
+  std::uint32_t MaxInMatrix(std::vector<std::vector<std::uint32_t>> &matrix);
+  std::uint32_t MaxInter(std::vector<std::vector<std::uint32_t>> &matrix);
+  std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix);
 };
 
 }  // namespace tarantula

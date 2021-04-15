@@ -72,7 +72,7 @@ void Graph::Construct(
   // filter pair + create pile-o-gram + less than 4GB
   timer.Start();
   std::size_t bytes = 0;
-  std::ofstream myfile;
+  std::ofstream myfile, myfile2, myfile3;
   std::ofstream inter, intra;
   inter.open("interchromosome_strand.txt");
   intra.open("intrachromosome_strand.txt");
@@ -230,14 +230,27 @@ void Graph::Construct(
   }
 
   // create text file to visualise graph
-  myfile.open("graph.txt");
+  myfile.open("graph_max.txt");
+  myfile2.open("graph_inter_max.txt");
+  myfile3.open("graph.txt");
+  std::uint32_t max_contig = MaxInMatrix(matrix);
+  std::uint32_t max_contig_inter = MaxInter(matrix);
   for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
     for (int r = 0; r < i; r++) {
-      if (matrix[i][r] != 0)
-        myfile << i << "--" << r << "," << matrix[i][r] << "\n";
+      if (matrix[i][r] == 0)
+        continue;
+      double weight = (double) matrix[i][r]/ (double) max_contig;
+      if (weight > 0.0001)
+        myfile << i << "--" << r << "," << weight << "\n";
+      double weight_inter = (double) matrix[i][r]/ (double) max_contig_inter;
+      if (weight_inter > 0.0001)
+        myfile2 << i << "--" << r << "," << weight_inter << "\n";
+      myfile3 << i << "--" << r << "," << matrix[i][r] << "\n";
     }
   }
   myfile.close();
+  myfile2.close();
+  myfile3.close();
 
   // find component & only draw components that have >= 3 nodes (BY WINDOW)  -- error in get components, create new method for it
   /*
@@ -283,22 +296,66 @@ void Graph::Construct(
 
   int window_in_contig = 0;
   int counter = 1;
-  myfile.open("window_graph.txt");
+  myfile.open("window_graph_max.txt");
+  myfile2.open("window_graph_max_inter.txt");
+  myfile3.open("window_graph.txt");
   for (int i = 0; i < window_matrix.size(); i++) {
     if (i >= window_id_map[counter]) {
       window_in_contig++;
       counter++;
     }
     myfile << i << " " << window_in_contig << "\n";
+    myfile2 << i << " " << window_in_contig << "\n";
+    myfile3 << i << " " << window_in_contig << "\n";
   }
   myfile << "%\n";
+  myfile2 << "%\n";
+  myfile3 << "%\n";
+
+  // scale inter and intra the same way
+  
+  std::uint32_t max = MaxInMatrix(window_matrix);
+  std::uint32_t max_inter = MaxInter(window_matrix);
+  std::cerr << "max: " << max << std::endl;
   for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
     for (int r = 0; r < i; r++) {
-      if (window_matrix[i][r] != 0)
-        myfile << i << "--" << r << "," << window_matrix[i][r] << "\n";
+      if (window_matrix[i][r] == 0)
+        continue;
+      double weight = (double) window_matrix[i][r]/ (double) max;
+      if (weight > 0.0001 ) {
+        myfile << i << "--" << r << "," << weight << "\n";
+      }
+      double weight_inter = (double) window_matrix[i][r]/ (double) max_inter;
+      if (weight > 0.0001 ) {
+        myfile2 << i << "--" << r << "," << weight << "\n";
+      }
+      myfile3 << i << "--" << r << "," << window_matrix[i][r] << "\n";
     }
   }
+
+  // scale inter & intra differently
+  /*
+  std::uint32_t max_inter = MaxInter(window_matrix);
+  std::uint32_t max_intra = MaxIntra(window_matrix);
+  for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
+    for (int r = 0; r < i; r++) {
+      if (i == r) {
+        double weight = (double) window_matrix[i][r]/ (double) max_intra;
+        if (window_matrix[i][r] != 0 && weight > 0.00001 ) {
+          myfile << i << "--" << r << "," << weight << "\n";
+        }
+      } else {
+        double weight = (double) window_matrix[i][r]/ (double) max_inter;
+        if (window_matrix[i][r] != 0 && weight > 0.00001 ) {
+          myfile << i << "--" << r << "," << weight << "\n";
+        }
+      }
+    }
+  }*/
+
   myfile.close();
+  myfile2.close();
+  myfile3.close();
 
   // get pairs are discarded because there is multiple overlap
   /*
@@ -376,6 +433,42 @@ void Graph::GenerateMatrixWindowIntraLinks(
     matrix[window_id_1][window_id_2]+=1;
     matrix[window_id_2][window_id_1]+=1;
   }
+}
+
+std::uint32_t Graph::MaxInMatrix(std::vector<std::vector<std::uint32_t>> &matrix) {
+  std::uint32_t max = 0;
+  for (int i = 0; i < matrix.size(); i++) {
+    for (int r = 0; r <= i; r++) {
+      if (matrix[i][r] > max) {
+        max = matrix[i][r];
+      }
+    }
+  }
+  return max;
+}
+
+std::uint32_t Graph::MaxInter(std::vector<std::vector<std::uint32_t>> &matrix) {
+  std::uint32_t max = 0;
+  for (int i = 0; i < matrix.size(); i++) {
+    for (int r = 0; r < i; r++) {
+      if (i==r)
+        continue;
+      if (matrix[i][r] > max) {
+        max = matrix[i][r];
+      }
+    }
+  }
+  return max;
+}
+
+std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix){
+  std::uint32_t max = 0;
+  for (int i = 0; i < matrix.size(); i++){
+    if (matrix[i][i] > max){
+      max = matrix[i][i];
+    }
+  }
+  return max;
 }
 
 void Graph::GenerateMatrixWindow(
@@ -595,7 +688,7 @@ void Graph::Process(
       std::vector<std::vector<biosoup::Overlap>> minimizer_result;
       minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false));
       minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false));
-      auto long_read_len = sequence1->inflated_len*0.8;
+      auto long_read_len = sequence1->inflated_len*0.95;
 
       if (minimizer_result[0].size() < 1 || minimizer_result[1].size() < 1) {
         // no overlap, discard
