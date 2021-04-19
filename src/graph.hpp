@@ -57,7 +57,7 @@ struct Node{
         intrachromosome_links(0),
         link_0011(0),
         link_0110(0) {
-          int size = ceil(len/100000);
+          int size = ceil(len/50000);
           for (int i = 0; i <= size; i++) {
             Window w(i);
             windows.push_back(w);
@@ -75,6 +75,7 @@ struct Node{
 
 class Graph {
  public:
+  int window_size = 50000;
   explicit Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
 
   Graph(const Graph&) = delete;

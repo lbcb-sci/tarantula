@@ -187,7 +187,7 @@ void Graph::Construct(
   }
   output += "Total\n";
   myfile << output;
-  
+
   for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
     auto sum = 0;
     output ="";
@@ -214,6 +214,28 @@ void Graph::Construct(
             << " Total Interchromosome links = " << sum_interchromosome_links/2
             << std::endl;
 
+  int start, end;
+
+  for (int i = 0; i < window_id_map.size(); i++) {
+    myfile.open("contig_" + std::to_string(i) + ".txt");
+    start = window_id_map[i];
+    if (i+1 == window_id_map.size()) {
+      end = window_matrix.size();
+    } else {
+      end = window_id_map[i+1];
+    }
+    for (int r = start; r < end; r++) {
+      for (int x = start; x < r; x++) {
+        if (window_matrix[r][x] != 0)
+          myfile << r << "--" << x << "," << window_matrix[r][x] << "\n";
+      }
+    }
+    myfile.close();
+  }
+
+
+  // graph -- 1 contig == 1 node
+  /*
   // find component & only draw components that have >= 3 nodes
   std::vector<std::vector<std::uint32_t>> components = GetComponents(matrix);
   for (int it = 0; it < static_cast<int>(components.size()); it++) {
@@ -250,7 +272,7 @@ void Graph::Construct(
   }
   myfile.close();
   myfile2.close();
-  myfile3.close();
+  myfile3.close();*/
 
   // find component & only draw components that have >= 3 nodes (BY WINDOW)  -- error in get components, create new method for it
   /*
@@ -294,6 +316,8 @@ void Graph::Construct(
     myfile.close();
   }*/
 
+// window graph -- inter and intra links
+/*
   int window_in_contig = 0;
   int counter = 1;
   myfile.open("window_graph_max.txt");
@@ -333,29 +357,9 @@ void Graph::Construct(
     }
   }
 
-  // scale inter & intra differently
-  /*
-  std::uint32_t max_inter = MaxInter(window_matrix);
-  std::uint32_t max_intra = MaxIntra(window_matrix);
-  for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
-    for (int r = 0; r < i; r++) {
-      if (i == r) {
-        double weight = (double) window_matrix[i][r]/ (double) max_intra;
-        if (window_matrix[i][r] != 0 && weight > 0.00001 ) {
-          myfile << i << "--" << r << "," << weight << "\n";
-        }
-      } else {
-        double weight = (double) window_matrix[i][r]/ (double) max_inter;
-        if (window_matrix[i][r] != 0 && weight > 0.00001 ) {
-          myfile << i << "--" << r << "," << weight << "\n";
-        }
-      }
-    }
-  }*/
-
   myfile.close();
   myfile2.close();
-  myfile3.close();
+  myfile3.close();*/
 
   // get pairs are discarded because there is multiple overlap
   /*
@@ -425,8 +429,8 @@ void Graph::GenerateMatrixWindowIntraLinks(
   int same = 0;
   int extra_1 = 0;
   for (const auto& rp : read_pairs) {
-    int window_index_begin_1 = rp.second[0][0].rhs_begin/100000;
-    int window_index_begin_2 = rp.second[1][0].rhs_begin/100000;
+    int window_index_begin_1 = rp.second[0][0].rhs_begin/window_size;
+    int window_index_begin_2 = rp.second[1][0].rhs_begin/window_size;
     int window = window_id_map[rp.second[1][0].rhs_id];
     int window_id_1 = window + window_index_begin_1;
     int window_id_2 = window + window_index_begin_2;
@@ -451,7 +455,7 @@ std::uint32_t Graph::MaxInter(std::vector<std::vector<std::uint32_t>> &matrix) {
   std::uint32_t max = 0;
   for (int i = 0; i < matrix.size(); i++) {
     for (int r = 0; r < i; r++) {
-      if (i==r)
+      if (i == r)
         continue;
       if (matrix[i][r] > max) {
         max = matrix[i][r];
@@ -461,10 +465,10 @@ std::uint32_t Graph::MaxInter(std::vector<std::vector<std::uint32_t>> &matrix) {
   return max;
 }
 
-std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix){
+std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix) {
   std::uint32_t max = 0;
-  for (int i = 0; i < matrix.size(); i++){
-    if (matrix[i][i] > max){
+  for (int i = 0; i < matrix.size(); i++) {
+    if (matrix[i][i] > max) {
       max = matrix[i][i];
     }
   }
@@ -479,10 +483,10 @@ void Graph::GenerateMatrixWindow(
   int extra = 0;
 
   for (const auto& rp : interchromsome_read_pairs) {
-    int window_index_begin_1 = rp.second[0][0].rhs_begin/100000;
-    int window_index_end_1 = rp.second[0][0].rhs_end/100000;
-    int window_index_begin_2 = rp.second[1][0].rhs_begin/100000;
-    int window_index_end_2 = rp.second[1][0].rhs_end/100000;
+    int window_index_begin_1 = rp.second[0][0].rhs_begin/window_size;
+    int window_index_end_1 = rp.second[0][0].rhs_end/window_size;
+    int window_index_begin_2 = rp.second[1][0].rhs_begin/window_size;
+    int window_index_end_2 = rp.second[1][0].rhs_end/window_size;
     int id_1 = rp.second[0][0].rhs_id;
     int id_2 = rp.second[1][0].rhs_id;
 
@@ -550,8 +554,8 @@ void Graph::CalcualteInterChromosomeLinks(
   for (const auto& rp : interchromsome_read_pairs) {
     strand_1 = rp.second[0][0].strand;
     strand_2 = rp.second[1][0].strand;
-    window_index_begin = rp.second[0][0].rhs_begin/100000;
-    window_index_end = rp.second[0][0].rhs_end/100000;
+    window_index_begin = rp.second[0][0].rhs_begin/window_size;
+    window_index_end = rp.second[0][0].rhs_end/window_size;
   
     found = contigs.find(rp.second[0][0].rhs_id);
     if (found == contigs.end()) {
@@ -574,8 +578,8 @@ void Graph::CalcualteInterChromosomeLinks(
       std::cerr << "window size:" << found->second.windows.size() <<"window index: " << window_index_end << std::endl;
     }
 
-    window_index_begin = rp.second[1][0].rhs_begin/100000;
-    window_index_end = rp.second[1][0].rhs_end/100000;
+    window_index_begin = rp.second[1][0].rhs_begin/window_size;
+    window_index_end = rp.second[1][0].rhs_end/window_size;
     found = contigs.find(rp.second[1][0].rhs_id);
     if (found == contigs.end()) {
       std::cerr << "ERROR contig not found" << std::endl;
@@ -617,10 +621,10 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       
       found->second.intrachromosome_links++;
       /*
-      int window_1_begin = rp.second[0][0].rhs_begin/100000;
-      int window_2_begin = rp.second[1][0].rhs_begin/100000;
-      int window_1_end = rp.second[0][0].rhs_end/100000;
-      int window_2_end = rp.second[1][0].rhs_end/100000;
+      int window_1_begin = rp.second[0][0].rhs_begin/window_size;
+      int window_2_begin = rp.second[1][0].rhs_begin/window_size;
+      int window_1_end = rp.second[0][0].rhs_end/window_size;
+      int window_2_end = rp.second[1][0].rhs_end/window_size;
 
       if (window_1_begin!=window_1_end){
         found->second.windows[window_1_begin].intrachromosome_links++;
