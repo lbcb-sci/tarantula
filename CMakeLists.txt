@@ -61,7 +61,7 @@ if (NOT ram_FOUND)
   FetchContent_Declare(
     ram
     GIT_REPOSITORY https://github.com/lbcb-sci/ram
-    GIT_TAG 7597511)
+    GIT_TAG 304536)
 
   FetchContent_GetProperties(ram)
   if (NOT ram_POPULATED)
