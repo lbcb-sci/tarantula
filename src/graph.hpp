@@ -17,8 +17,20 @@
 #include "biosoup/nucleic_acid.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "ram/minimizer_engine.hpp"
+#include "cereal/access.hpp"
+#include "cereal/types/unordered_map.hpp"
+#include "cereal/types/vector.hpp"
+#include "cereal/types/string.hpp"
+#include "cereal/archives/binary.hpp"
 
 #include "pileogram.hpp"
+
+namespace biosoup {
+  template<class Archive>
+  void serialize(Archive & archive, Overlap& m) {
+    archive(m.alignment, m.lhs_begin, m.lhs_end, m.lhs_id, m.rhs_begin, m.rhs_end, m.rhs_id, m.score, m.strand);
+  }
+}
 
 namespace tarantula {
 
@@ -93,26 +105,20 @@ class Graph {
   void PrintJson(const std::string& path) const;
 
  private:
+  friend class cereal::access; 
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
   std::unordered_map<std::uint32_t, Node> contigs;
   std::vector<std::vector<std::uint32_t>> adjMatrix;
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> interchromosome_read_pairs;
-
-  template <class Archive>
-  void save( Archive & ar ) const
-  {
-    ar( read_pairs );
-  }
-      
-  template <class Archive>
-  void load( Archive & ar )
-  {
-    ar( read_pairs );
-  }
+  std::unordered_map<std::string, std::vector<biosoup::Overlap>> read_pairs;
+  std::unordered_map<std::string, std::vector<biosoup::Overlap>> interchromosome_read_pairs;
   
+  template<class Archive>
+  void serialize(Archive & archive) {
+    archive(CEREAL_NVP(read_pairs), CEREAL_NVP(interchromosome_read_pairs)); // serialize things by passing them to the archive
+  }
+
   void Process(
-    std::vector<std::future<std::vector<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>>>& futures,
+    std::vector<std::future<std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>>>& futures,
     ram::MinimizerEngine& minimizer_engine,
     std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     std::unique_ptr<biosoup::NucleicAcid>& sequence2);
@@ -121,27 +127,27 @@ class Graph {
     biosoup::Overlap ol1,
     biosoup::Overlap ol2); 
 
-  void FillPileogram(std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
+  void FillPileogram(std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
   int GetNumWindows();
 
   void CalcualteInterChromosomeLinks(
-  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
+  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs);
 
   void GenerateMatrix(
     std::vector<std::vector<std::uint32_t>> &matrix, 
-    std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
+    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs);
   
   void GenerateMatrixWindowIntraLinks(
     std::vector<int>& window_id_map,
     std::vector<std::vector<std::uint32_t>> &matrix,
-    std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& read_pairs);
+    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
 
   void GenerateMatrixWindow(
     std::vector<int>& window_id_map,
     std::vector<std::vector<std::uint32_t>> &matrix,
-    std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>>& interchromsome_read_pairs);
+    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs);
   
   std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
 
