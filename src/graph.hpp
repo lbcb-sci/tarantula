@@ -96,9 +96,23 @@ class Graph {
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
   std::unordered_map<std::uint32_t, Node> contigs;
   std::vector<std::vector<std::uint32_t>> adjMatrix;
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> read_pairs;
+  std::unordered_map<std::string, std::vector<std::vector<biosoup::Overlap>>> interchromosome_read_pairs;
+
+  template <class Archive>
+  void save( Archive & ar ) const
+  {
+    ar( read_pairs );
+  }
+      
+  template <class Archive>
+  void load( Archive & ar )
+  {
+    ar( read_pairs );
+  }
   
   void Process(
-    std::vector<std::future<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>>& futures,
+    std::vector<std::future<std::vector<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>>>& futures,
     ram::MinimizerEngine& minimizer_engine,
     std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     std::unique_ptr<biosoup::NucleicAcid>& sequence2);
@@ -135,6 +149,9 @@ class Graph {
   std::uint32_t MaxInMatrix(std::vector<std::vector<std::uint32_t>> &matrix);
   std::uint32_t MaxInter(std::vector<std::vector<std::uint32_t>> &matrix);
   std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix);
+
+  void Store() const;
+  void Load();
 };
 
 }  // namespace tarantula

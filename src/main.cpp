@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
   tarantula::Graph graph{thread_pool};
 
   graph.Construct(targets, sequences);
-  graph.PrintJson("piles.json");
+  //graph.PrintJson("piles.json");
 
   timer.Stop();
   std::cerr << "[tarantula::] " << std::fixed << timer.elapsed_time() << "s"
