@@ -152,7 +152,7 @@ void Graph::Construct(
             } else if (result.first.find("empty_mt_0") != std::string::npos) {
               no_ol_2_mt_0++; 
             }
-          } else {
+          } else if (result.first.compare("discard") != 0) {
             read_pairs.insert(result);
           }
         }
@@ -728,6 +728,7 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
     }
   }
   std::cerr << "[tarantula::Construct] Extra intrachromosome links between windows: " << extra << std::endl;
+  
   for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
     found = contigs.find(overlap_map_iter->first);
     found->second.pileogram.AddLayer(overlap_map_iter->second);
@@ -747,6 +748,146 @@ std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(
       std::max(ol1.rhs_end,   ol2.rhs_end));
 }
 
+
+// map hi-c reads to contig & filter
+void Graph::Process(
+  std::vector<std::future<std::vector<std::pair<std::string,
+  std::vector<std::vector<biosoup::Overlap>>>>>>& futures,
+  ram::MinimizerEngine& minimizer_engine,
+  std::unique_ptr<biosoup::NucleicAcid>& sequence1,
+  std::unique_ptr<biosoup::NucleicAcid>& sequence2) {
+
+  futures.emplace_back(thread_pool_->Submit([&] (
+    ram::MinimizerEngine& minimizer_engine,
+    const std::unique_ptr<biosoup::NucleicAcid>& sequence1,
+    const std::unique_ptr<biosoup::NucleicAcid>& sequence2)
+    -> std::vector<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>>{
+      std::vector<std::uint32_t> filtered1, filtered2;
+      std::vector<std::vector<biosoup::Overlap>> minimizer_result, minimizer_result_long_read;
+      minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false, false, &filtered1));
+      minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false, false, &filtered2));
+      auto long_read_len = sequence1->inflated_len*0.75;
+
+      // no overlap for 1 / both
+      if (minimizer_result[0].size() < 1 || minimizer_result[1].size() < 1) {
+        // no overlap, discard
+        if (minimizer_result[0].size() > 0 || minimizer_result[1].size() > 0) {
+          // minimizer_result.clear();
+          
+          if (filtered1.size() > 4 || filtered2.size() > 4)
+            return {{"1_overlap_mt_4", minimizer_result}};
+          if (filtered1.size() > 0 || filtered2.size() > 0)
+            return {{"1_overlap_mt_0", minimizer_result}};
+
+          //minimizer_result.clear();
+          return {{"1_overlap", minimizer_result}};
+        } else {
+          // minimizer_result.clear();
+          
+          if (filtered1.size() > 4 || filtered2.size() > 4)
+            return {{"empty_mt_4", minimizer_result}};
+          if (filtered1.size() > 0 || filtered2.size() > 0)
+            return {{"empty_mt_0", minimizer_result}};
+          //minimizer_result.clear();
+          return {{"empty", minimizer_result}};
+        }
+      }
+      
+      // filter out those len > 0.75
+      for (auto& minimizer : minimizer_result) {
+        std::vector<biosoup::Overlap> filtered_overlaps;
+        for (auto& overlap: minimizer) {
+          if (overlap.rhs_end - overlap.rhs_begin > long_read_len) {
+            filtered_overlaps.push_back(overlap);
+          }
+        }
+        minimizer_result_long_read.push_back(filtered_overlaps);
+      }
+
+      // no long reads for 1 / both
+      if (minimizer_result_long_read[0].size() == 0 || minimizer_result_long_read[1].size() == 0) {
+        if (filtered1.size() > 4 || filtered2.size() > 4)
+          return {{sequence1->name + "__multiple_short_reads_mt_4", minimizer_result_long_read}};
+        if (filtered1.size() > 0 || filtered2.size() > 0)
+          return {{sequence1->name + "_multiple_short_reads_mt_0", minimizer_result_long_read}};
+        return {{sequence1->name + "_multiple_short_reads", minimizer_result_long_read}};
+      }
+        
+      // straight forward interchromosome / intrachromosome
+      if (minimizer_result_long_read[0].size() == 1 && minimizer_result_long_read[1].size() == 1) {
+        if (minimizer_result_long_read[0][0].rhs_id == minimizer_result_long_read[1][0].rhs_id) {
+          return {{sequence1->name, minimizer_result_long_read}};
+        } else {
+          return {{sequence1->name + "_interchromosome", minimizer_result_long_read}};
+        }
+      }
+
+
+      // multiple long reads
+      std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>> intra_pairs;
+      std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>>::iterator iter;
+      int pair_count = 0;
+      for (auto& minimizer_result_each_pair : minimizer_result_long_read) {
+        for (auto& overlap : minimizer_result_each_pair) {
+          iter = intra_pairs.find(overlap.rhs_id);
+          if (iter == intra_pairs.end()) {
+            if (pair_count == 1) {
+              continue;
+            }
+            std::vector<biosoup::Overlap> vec1 = {overlap};
+            std::vector<biosoup::Overlap> vec2 = {};
+            std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>> temp_tuple = std::make_tuple(vec1, vec2);
+            intra_pairs.insert({overlap.rhs_id, temp_tuple});
+          } else {
+            if (pair_count == 0)
+              std::get<0>(iter->second).push_back(overlap);
+            else
+              std::get<1>(iter->second).push_back(overlap);
+          }
+        }
+        pair_count++;
+      }
+
+      
+      std::vector<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>> result;
+      bool there_is_result = false;
+      for (auto const& pair : intra_pairs) {
+        if (std::get<0>(pair.second).size() != 0 && std::get<1>(pair.second).size() != 0) {
+          there_is_result = true;
+          for (auto const& ol1 : std::get<0>(pair.second)) {
+            for (auto const& ol2 : std::get<1>(pair.second)) {
+              result.push_back({sequence1->name, {{ol1}, {ol2} }});
+            }
+          }
+        }
+      }
+      if (there_is_result)
+        return result;
+      
+      int num_pair_w_multi_overlap = 0;
+      if (minimizer_result_long_read[0].size() > 1)
+        num_pair_w_multi_overlap++;
+      if (minimizer_result_long_read[1].size() > 1)
+        num_pair_w_multi_overlap++;
+
+      if (num_pair_w_multi_overlap == 1) {
+        return {{sequence1->name + "_multiple_long_reads_1_pair", minimizer_result_long_read}};
+      } else if (num_pair_w_multi_overlap == 2) {
+        return {{sequence1->name + "_multiple_long_reads_2_pair", minimizer_result_long_read}};
+      }
+
+      
+      //std::cerr <<"still have discard" << std::endl;
+      return {{"discard", minimizer_result}};
+
+
+    },
+    std::ref(minimizer_engine),
+    std::cref(sequence1),
+    std::cref(sequence2)));
+  }
+
+/*
 // map hi-c reads to contig & filter
 void Graph::Process(
   std::vector<std::future<std::vector<std::pair<std::string,
@@ -791,13 +932,23 @@ void Graph::Process(
         }
       }
 
-      // interchromosome links
+      // interchromosome links && intrachromosome links, 1 overlap, all considered long
       if (minimizer_result[0].size() == 1 && minimizer_result[1].size() == 1){
         if (minimizer_result[0][0].rhs_id != minimizer_result[1][0].rhs_id) {
         // interchromosome
           if (minimizer_result[0][0].rhs_end - minimizer_result[0][0].rhs_begin > long_read_len 
               && minimizer_result[1][0].rhs_end - minimizer_result[1][0].rhs_begin > long_read_len)
-          return {{sequence1->name + "_interchromosome", minimizer_result}};
+            return {{sequence1->name + "_interchromosome", minimizer_result}};
+          else {
+            return {{"discard", minimizer_result}};
+          }
+        } else {
+          if (minimizer_result[0][0].rhs_end - minimizer_result[0][0].rhs_begin > long_read_len 
+              && minimizer_result[1][0].rhs_end - minimizer_result[1][0].rhs_begin > long_read_len)
+            return {{sequence1->name, minimizer_result}};
+          else {
+            return {{"discard", minimizer_result}};
+          }
         }
       }
       
@@ -815,7 +966,10 @@ void Graph::Process(
           temp = ol;
           iter = intra_pairs.find(ol.rhs_id);
           if (iter == intra_pairs.end()) {
-            intra_pairs.insert({ol.rhs_id, {{ol}, {}}});
+            std::vector<biosoup::Overlap> vec1 = {ol};
+            std::vector<biosoup::Overlap> vec2 = {};
+            std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>> temp_tuple = std::make_tuple(vec1, vec2);
+            intra_pairs.insert({ol.rhs_id, temp_tuple});
           } else {
             std::get<0>(iter->second).push_back(ol);
           }
@@ -823,7 +977,6 @@ void Graph::Process(
       }
       if (numLR > 1) {
         num_multiple_overlap++;
-        // return {sequence1->name + "_multiple_long_reads_2_pair", minimizer_result};
       }
 
       if (numLR == 0) {
@@ -842,7 +995,7 @@ void Graph::Process(
       numLR = 0;
       biosoup::Overlap temp1;
       // second pair
-      for (auto const& ol : minimizer_result[0]) {
+      for (auto const& ol : minimizer_result[1]) {
         if (ol.rhs_end-ol.rhs_begin > long_read_len) {
           numLR++;
           temp1 = ol;
@@ -852,6 +1005,7 @@ void Graph::Process(
           }
         }
       }
+
       if (numLR > 1) {
         num_multiple_overlap++;
         // return {sequence1->name + "_multiple_long_reads_2_pair", minimizer_result};
@@ -873,10 +1027,12 @@ void Graph::Process(
 
 
       std::vector<std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>>> result;
+      bool there_is_result = false;
       //std::vector<std::vector<biosoup::Overlap>> result;
       if (num_multiple_overlap > 0) {
         for (auto const& pair : intra_pairs) {
           if (std::get<0>(pair.second).size() != 0 && std::get<1>(pair.second).size() != 0) {
+            there_is_result = true;
             for (auto const& ol1 : std::get<0>(pair.second)) {
               for (auto const& ol2 : std::get<1>(pair.second)) {
                 result.push_back({sequence1->name, {{ol1}, {ol2} }});
@@ -884,34 +1040,25 @@ void Graph::Process(
             }
           }
         }
-        return result;
+        if (there_is_result)
+          return result;
       }
 
       if (num_multiple_overlap == 1) {
         num_multiple_overlap = 0;
-        /*
-        if (filtered1.size() > 4 || filtered2.size() > 4)
-          return {sequence1->name + "_multiple_long_reads_1_pair_mt_4", minimizer_result};
-        else if (filtered1.size() > 0 || filtered2.size() > 0)
-          return {sequence1->name + "_multiple_long_reads_1_pair_mt_0", minimizer_result};*/
         return {{sequence1->name + "_multiple_long_reads_1_pair", minimizer_result}};
       } else if (num_multiple_overlap == 2) {
         num_multiple_overlap = 0;
-        /*if (filtered1.size() > 4 || filtered2.size() > 4)
-          return {sequence1->name + "_multiple_long_reads_2_pair_mt_4", minimizer_result};
-        else if (filtered1.size() > 0 || filtered2.size() > 0)
-          return {sequence1->name + "_multiple_long_reads_2_pair_mt_0", minimizer_result};*/
         return {{sequence1->name + "_multiple_long_reads_2_pair", minimizer_result}};
       }
 
-    
       // return pair
-      return {{sequence1->name, minimizer_result}};
+      return {{"discard", minimizer_result}};
     },
     std::ref(minimizer_engine),
     std::cref(sequence1),
     std::cref(sequence2)));
-}
+}*/
 
 std::vector<std::vector<uint32_t>> Graph::GetComponents(std::vector<std::vector<std::uint32_t>> &matrix) {
   std::cerr << "start get components" << std::endl;
