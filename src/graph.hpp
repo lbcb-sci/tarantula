@@ -61,7 +61,7 @@ struct Node{
   uint32_t link_0011;
   uint32_t link_0110;
   std::vector<Window> windows;
-  Node(uint32_t id, uint32_t len)
+  Node(uint32_t id, uint32_t len, int window_size)
       : id(id),
         len(len),
         pileogram(id, len),
@@ -69,7 +69,7 @@ struct Node{
         intrachromosome_links(0),
         link_0011(0),
         link_0110(0) {
-          int size = ceil(len/50000);
+          int size = ceil(len/window_size);
           for (int i = 0; i <= size; i++) {
             Window w(i);
             windows.push_back(w);
@@ -87,8 +87,8 @@ struct Node{
 
 class Graph {
  public:
-  int window_size = 50000;
-  explicit Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr);  // NOLINT
+
+  explicit Graph(std::shared_ptr<thread_pool::ThreadPool> thread_pool = nullptr, int window_size = 100000);  // NOLINT
 
   Graph(const Graph&) = delete;
   Graph& operator=(const Graph&) = delete;
@@ -111,6 +111,7 @@ class Graph {
   std::vector<std::vector<std::uint32_t>> adjMatrix;
   std::unordered_map<std::string, std::vector<biosoup::Overlap>> read_pairs;
   std::unordered_map<std::string, std::vector<biosoup::Overlap>> interchromosome_read_pairs;
+  uint32_t window_size;
   
   template<class Archive>
   void serialize(Archive & archive) {

@@ -14,11 +14,12 @@ std::atomic<std::uint32_t> biosoup::NucleicAcid::num_objects{0};
 namespace tarantula {
 
 Graph::Graph(
-    std::shared_ptr<thread_pool::ThreadPool> thread_pool)
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool, 
+    int window_size)
     : thread_pool_(thread_pool ?
         thread_pool :
-        std::make_shared<thread_pool::ThreadPool>(1)) {
-}
+        std::make_shared<thread_pool::ThreadPool>(1)), 
+      window_size(window_size) {}
 
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
@@ -162,9 +163,7 @@ void Graph::Construct(
           << read_pairs.size() << " "
           << timer.Stop() << "s"
           << std::endl;
-      
-      std::cerr << "start of fill pilograms" << std::endl;
-    
+
       // fill pile-o-gram
       
       timer.Start();
@@ -479,7 +478,7 @@ void Graph::Construct(
 void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   for (auto const& target : targets) {
-    contigs.emplace(target->id, Node(target->id, target->inflated_len));
+    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size));
   }
 }
 

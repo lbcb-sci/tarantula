@@ -16,6 +16,7 @@ namespace {
 
 static struct option options[] = {
   {"threads", required_argument, nullptr, 't'},
+  {"basepair", required_argument, nullptr, 'b'},
   {"version", no_argument, nullptr, 'v'},
   {"help", no_argument, nullptr, 'h'},
   {nullptr, 0, nullptr, 0}
@@ -69,6 +70,10 @@ void Help() {
       "      default: 1\n"
       "      number of threads\n"
       "    --version\n"
+      "    -b, --basepair <int>\n"
+      "      default: 100000\n"
+      "      number of basepair/window\n"
+      "    --version\n"
       "      prints the version number\n"
       "    -h, --help\n"
       "      prints the usage\n";
@@ -80,12 +85,14 @@ int main(int argc, char** argv) {
   std::vector<std::string> input_paths;
 
   std::uint32_t num_threads = 1;
+  int bp_per_window = 100000;
 
-  std::string optstr = "t:h";
+  std::string optstr = "t:b:h";
   int arg;
   while ((arg = getopt_long(argc, argv, optstr.c_str(), options, nullptr)) != -1) {  // NOLINT
     switch (arg) {
       case 't': num_threads = atoi(optarg); break;
+      case 'b': bp_per_window = atoi(optarg); break;
       case 'v': std::cout << VERSION << std::endl; return 0;
       case 'h': Help(); return 0;
       default: return 1;
@@ -144,7 +151,7 @@ int main(int argc, char** argv) {
 
   auto thread_pool = std::make_shared<thread_pool::ThreadPool>(num_threads);
 
-  tarantula::Graph graph{thread_pool};
+  tarantula::Graph graph{thread_pool, bp_per_window};
 
   graph.Construct(targets, sequences);
   //graph.PrintJson("piles.json");
