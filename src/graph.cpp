@@ -325,6 +325,16 @@ void Graph::Construct(
     myfile.close();
   }
 
+  // directed force
+  /*
+  for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
+    std::string input = "contig_" + std::to_string(i) + ".txt";
+    std::string output = "contig_" + std::to_string(i) + "_output.txt";
+    directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output);
+  }*/
+
+  
+
 
   // graph -- 1 contig == 1 node
   /*

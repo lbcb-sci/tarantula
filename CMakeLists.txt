@@ -97,7 +97,11 @@ add_library(tarantula
   src/graph.cpp
   src/pileogram.cpp)
 
+add_library(directedforce
+  src/algorithm.cpp)
+
 target_link_libraries(tarantula
+  directedforce
   cereal::cereal
   ram::ram)
 
@@ -109,6 +113,7 @@ add_executable(tarantula_exe
 
 target_link_libraries(tarantula_exe
   tarantula
+  directedforce
   bioparser::bioparser)
 
 target_compile_definitions(tarantula_exe PRIVATE VERSION="${PROJECT_VERSION}")
@@ -122,6 +127,7 @@ if (tarantula_build_tests)
 
   target_link_libraries(tarantula_test
     tarantula
+    directedforce
     bioparser::bioparser
     GTest::Main)
 

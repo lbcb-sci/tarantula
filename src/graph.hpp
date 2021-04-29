@@ -24,6 +24,7 @@
 #include "cereal/archives/binary.hpp"
 
 #include "pileogram.hpp"
+#include "algorithm.h"
 
 namespace biosoup {
   template<class Archive>
