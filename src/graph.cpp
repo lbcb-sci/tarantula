@@ -34,6 +34,13 @@ void Graph::Construct(
   int discard_due_to_no_overlap = 0;
   int only_1_pair_overlap = 0;
 
+  int multiple_sr_mt_4 = 0;
+  int multiple_sr_mt_0 = 0;
+  int no_ol_1_mt_4 = 0;
+  int no_ol_1_mt_0 = 0;
+  int no_ol_2_mt_4 = 0;
+  int no_ol_2_mt_0 = 0;
+
   // sort the sequence first
   std::cerr << "[tarantula::Construct] Sorting: "
             << sequences.size()
@@ -110,6 +117,13 @@ void Graph::Construct(
         } else if (result.first.find("_multiple_short_reads") != std::string::npos) {
           discard_due_to_multiple_sr++;
           multiple_overlap_read_pairs.insert(result);
+
+          if (result.first.find("_multiple_short_reads_mt_4") != std::string::npos) {
+            multiple_sr_mt_4++;
+            multiple_sr_mt_0++;
+          } else if (result.first.find("_multiple_short_reads_mt_0") != std::string::npos)
+            multiple_sr_mt_0++;
+
         } else if (result.first.find("_multiple_long_reads_1_pair") != std::string::npos) {
           discard_due_to_1_multiple_lr++;
           multiple_overlap_read_pairs.insert(result);
@@ -119,13 +133,27 @@ void Graph::Construct(
         } else if (result.first.find("1_overlap") != std::string::npos) {
           only_1_pair_overlap++;
           discard_due_to_no_overlap++;
-        } else if (result.first.compare("empty") != 0) {
+
+          if (result.first.find("1_overlap_mt_4") != std::string::npos) {
+            no_ol_1_mt_4++;
+            no_ol_1_mt_0++;
+          } else if (result.first.find("1_overlap_mt_0") != std::string::npos) {
+            no_ol_1_mt_0++; 
+          }
+            
+
+        } else if (result.first.find("empty") != std::string::npos) {
+          discard_due_to_no_overlap++;
+          if (result.first.find("empty_mt_4") != std::string::npos) {
+            no_ol_2_mt_4++;
+            no_ol_2_mt_0++;
+          } else if (result.first.find("empty_mt_0") != std::string::npos) {
+            no_ol_2_mt_0++; 
+          }
+        } else {
           read_pairs.insert(result);
           // intra << result.first << "," << result.second[0][0].strand
                  // << result.second[1][0].strand << "\n";
-        }
-        else {
-          discard_due_to_no_overlap++;
         }
       }
       num_filtered_pair += read_pairs.size();
@@ -133,7 +161,8 @@ void Graph::Construct(
           << read_pairs.size() << " "
           << timer.Stop() << "s"
           << std::endl;
-
+      
+      std::cerr << "start of fill pilograms" << std::endl;
       // fill pile-o-gram
       timer.Start();
       FillPileogram(read_pairs);
@@ -164,14 +193,26 @@ void Graph::Construct(
             << interchromosome_read_pairs.size() << std::endl;
   std::cerr << "[tarantula::Construct] Number of pairs that discard as there is multiple short reads: "
             << discard_due_to_multiple_sr << std::endl;
+  std::cerr << "[tarantula::Construct] Number of pairs that discard as there is multiple short reads, filtered size > 0: "
+            << multiple_sr_mt_0 << std::endl;
+  std::cerr << "[tarantula::Construct] Number of pairs that discard as there is multiple short reads, filtered size > 4: "
+            << multiple_sr_mt_4 << std::endl << std::endl;
   std::cerr << "[tarantula::Construct] Number of pairs that discard as there is 1 pair with multiple long reads: "
             << discard_due_to_1_multiple_lr << std::endl;
   std::cerr << "[tarantula::Construct] Number of pairs that discard as there is 2 pair with multiple long reads: "
-            << discard_due_to_2_multiple_lr << std::endl;
+            << discard_due_to_2_multiple_lr << std::endl << std::endl;
   std::cerr << "[tarantula::Construct] Number of pairs that discard as there is only 1 pair with overlaps: "
             << only_1_pair_overlap << std::endl;
+  std::cerr << "[tarantula::Construct] Number of pairs that discard as there is only 1 pair with overlaps, filtered size > 0: "
+            << no_ol_1_mt_0 << std::endl;
+  std::cerr << "[tarantula::Construct] Number of pairs that discard as there is only 1 pair with overlaps, filtered size > 4: "
+            << no_ol_1_mt_4 << std::endl << std::endl;
   std::cerr << "[tarantula::Construct] Number of pairs that discard as both pair hav no overlaps: "
             << discard_due_to_no_overlap - only_1_pair_overlap << std::endl;
+  std::cerr << "[tarantula::Construct] Number of pairs that discard as both pair hav no overlaps, filtered size > 0: "
+            << no_ol_2_mt_0 << std::endl;
+  std::cerr << "[tarantula::Construct] Number of pairs that discard as both pair hav no overlaps, filtered size > 4: "
+            << no_ol_2_mt_4 << std::endl;
   std::cerr << "[tarantula::Construct]-------------------------------------------------" << std::endl;
 
   CalcualteInterChromosomeLinks(interchromosome_read_pairs);
@@ -659,7 +700,6 @@ void Graph::FillPileogram(std::unordered_map<std::string, std::vector<std::vecto
       std::cerr << "ERROR contig not found" << std::endl;
     } else {
       // update intrachromosome links
-      
       found->second.intrachromosome_links++;
       /*
       int window_1_begin = rp.second[0][0].rhs_begin/window_size;
@@ -730,19 +770,33 @@ void Graph::Process(
     const std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     const std::unique_ptr<biosoup::NucleicAcid>& sequence2)
     -> std::pair<std::string, std::vector<std::vector<biosoup::Overlap>>> {
+      std::vector<std::uint32_t> filtered1, filtered2;
       std::vector<std::vector<biosoup::Overlap>> minimizer_result;
-      minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false));
-      minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false));
+      minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false, false, &filtered1));
+      minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false, false, &filtered2));
       auto long_read_len = sequence1->inflated_len*0.95;
       int num_multiple_overlap = 0;
 
       if (minimizer_result[0].size() < 1 || minimizer_result[1].size() < 1) {
         // no overlap, discard
         if (minimizer_result[0].size() > 0 || minimizer_result[1].size() > 0) {
-          minimizer_result.clear();
+          // minimizer_result.clear();
+          
+          if (filtered1.size() > 4 || filtered2.size() > 4)
+            return {"1_overlap_mt_4", minimizer_result};
+          if (filtered1.size() > 0 || filtered2.size() > 0)
+            return {"1_overlap_mt_0", minimizer_result};
+
+          //minimizer_result.clear();
           return {"1_overlap", minimizer_result};
         } else {
-          minimizer_result.clear();
+          // minimizer_result.clear();
+          
+          if (filtered1.size() > 4 || filtered2.size() > 4)
+            return {"empty_mt_4", minimizer_result};
+          if (filtered1.size() > 0 || filtered2.size() > 0)
+            return {"empty_mt_0", minimizer_result};
+          //minimizer_result.clear();
           return {"empty", minimizer_result};
         }
       }
@@ -751,6 +805,7 @@ void Graph::Process(
       for (auto& rp : minimizer_result) {
         
         if (rp.size() == 1) {
+          // shouldnt happen at all
           continue;
         }
         std::vector<int> discard;
@@ -775,6 +830,11 @@ void Graph::Process(
 
         if (numLR == 0) {
           // dicard too because all are short reads
+          
+          if (filtered1.size() > 4 || filtered2.size() > 4)
+            return {sequence1->name + "__multiple_short_reads_mt_4", minimizer_result};
+          if (filtered1.size() > 0 || filtered2.size() > 0)
+            return {sequence1->name + "_multiple_short_reads_mt_0", minimizer_result};
           return {sequence1->name + "_multiple_short_reads", minimizer_result};
         }
 
@@ -784,9 +844,18 @@ void Graph::Process(
 
       if (num_multiple_overlap == 1) {
         num_multiple_overlap = 0;
+        /*
+        if (filtered1.size() > 4 || filtered2.size() > 4)
+          return {sequence1->name + "_multiple_long_reads_1_pair_mt_4", minimizer_result};
+        else if (filtered1.size() > 0 || filtered2.size() > 0)
+          return {sequence1->name + "_multiple_long_reads_1_pair_mt_0", minimizer_result};*/
         return {sequence1->name + "_multiple_long_reads_1_pair", minimizer_result};
       } else if (num_multiple_overlap == 2) {
         num_multiple_overlap = 0;
+        /*if (filtered1.size() > 4 || filtered2.size() > 4)
+          return {sequence1->name + "_multiple_long_reads_2_pair_mt_4", minimizer_result};
+        else if (filtered1.size() > 0 || filtered2.size() > 0)
+          return {sequence1->name + "_multiple_long_reads_2_pair_mt_0", minimizer_result};*/
         return {sequence1->name + "_multiple_long_reads_2_pair", minimizer_result};
       }
 
