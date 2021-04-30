@@ -1,7 +1,6 @@
 #include <atomic>
 #include <mutex>
 #include <iostream>
-#include <algorithm>
 
 namespace directedforce {
 
@@ -42,8 +41,8 @@ public:
     // Start bar
     os << "[";
 
-    const auto completed = static_cast<std::size_t>(progress_ * static_cast<float>(bar_width_) / 100.0);
-    for (std::size_t i = 0; i < bar_width_; ++i) {
+    const auto completed = static_cast<size_t>(progress_ * static_cast<float>(bar_width_) / 100.0);
+    for (size_t i = 0; i < bar_width_; ++i) {
       if (i <= completed) 
         os << fill_;
       else 
@@ -54,7 +53,7 @@ public:
     os << "]";
 
     // Write progress percentage
-    os << " " << std::min(static_cast<std::size_t>(progress_), std::size_t(100)) << "%"; 
+    os << " " << std::min(static_cast<size_t>(progress_), size_t(100)) << "%"; 
 
     // Write status text
     os << " " << status_text_;
@@ -62,7 +61,7 @@ public:
 
 private:
   std::atomic<float> progress_{0.0f};
-  std::size_t bar_width_{60};
+  size_t bar_width_{60};
   std::string fill_{"#"}, remainder_{" "}, status_text_{""};  
 };
 
