@@ -1,3 +1,8 @@
+// Copyright (c) 2021 Cecilia Lee, Robert Vaser
+
+#ifndef TARANTULA_PROGRESSBAR_HPP_
+#define TARANTULA_PROGRESSBAR_HPP_
+
 #include <atomic>
 #include <mutex>
 #include <iostream>
@@ -32,13 +37,8 @@ public:
   }
 
   void write_progress(std::ostream &os = std::cout) {
-    // No need to write once progress is 100%
     if (progress_ > 100.0f) return;
-
-    // Move cursor to the first position on the same line and flush 
     os << "\r" << std::flush;
-
-    // Start bar
     os << "[";
 
     const auto completed = static_cast<size_t>(progress_ * static_cast<float>(bar_width_) / 100.0);
@@ -49,13 +49,8 @@ public:
         os << remainder_;
     }
 
-    // End bar
     os << "]";
-
-    // Write progress percentage
     os << " " << std::min(static_cast<size_t>(progress_), size_t(100)) << "%"; 
-
-    // Write status text
     os << " " << status_text_;
   }
 
@@ -65,4 +60,6 @@ private:
   std::string fill_{"#"}, remainder_{" "}, status_text_{""};  
 };
 
-}
+}  // namespace directedforce
+
+#endif  // TARANTULA_PROGRESSBAR_HPP_

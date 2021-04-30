@@ -113,7 +113,7 @@ void Graph::Construct(
       for (auto& it : futures) {
         // if it == empty , discard
         auto result_vector = it.get();
-        for (auto result : result_vector ) {
+        for (auto result : result_vector) {
           if (result.first.find("_interchromosome") != std::string::npos) {
             interchromosome_read_pairs.insert(result);
           } else if (result.first.find("_multiple_short_reads") != std::string::npos) {
@@ -762,7 +762,7 @@ std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(
 
 // map hi-c reads to contig & filter
 void Graph::Process(
-  std::vector<std::future<std::vector<std::pair<std::string,std::vector<biosoup::Overlap>>>>>& futures,
+  std::vector<std::future<std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>>>& futures,
   ram::MinimizerEngine& minimizer_engine,
   std::unique_ptr<biosoup::NucleicAcid>& sequence1,
   std::unique_ptr<biosoup::NucleicAcid>& sequence2) {
