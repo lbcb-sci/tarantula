@@ -73,7 +73,7 @@ void Graph::Construct(
   }
 
   std::vector<std::future<std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>>> futures;
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>> multiple_overlap_read_pairs;
+  //std::unordered_map<std::string, std::vector<biosoup::Overlap>> multiple_overlap_read_pairs;
   //std::unordered_map<std::string, std::vector<biosoup::Overlap>> read_pairs;
   //std::unordered_map<std::string, std::vector<biosoup::Overlap>> interchromosome_read_pairs;
   biosoup::Timer timer;
@@ -120,8 +120,6 @@ void Graph::Construct(
             interchromosome_read_pairs.insert(result);
           } else if (result.first.find("_multiple_short_reads") != std::string::npos) {
             discard_due_to_multiple_sr++;
-            multiple_overlap_read_pairs.insert(result);
-
             if (result.first.find("_multiple_short_reads_mt_4") != std::string::npos) {
               multiple_sr_mt_4++;
               multiple_sr_mt_0++;
@@ -130,22 +128,17 @@ void Graph::Construct(
 
           } else if (result.first.find("_multiple_long_reads_1_pair") != std::string::npos) {
             discard_due_to_1_multiple_lr++;
-            multiple_overlap_read_pairs.insert(result);
           } else if (result.first.find("_multiple_long_reads_2_pair") != std::string::npos) {
             discard_due_to_2_multiple_lr++;
-            multiple_overlap_read_pairs.insert(result);
           } else if (result.first.find("1_overlap") != std::string::npos) {
             only_1_pair_overlap++;
             discard_due_to_no_overlap++;
-
             if (result.first.find("1_overlap_mt_4") != std::string::npos) {
               no_ol_1_mt_4++;
               no_ol_1_mt_0++;
             } else if (result.first.find("1_overlap_mt_0") != std::string::npos) {
               no_ol_1_mt_0++; 
             }
-              
-
           } else if (result.first.find("empty") != std::string::npos) {
             discard_due_to_no_overlap++;
             if (result.first.find("empty_mt_4") != std::string::npos) {
@@ -337,9 +330,10 @@ void Graph::Construct(
 
   
   // load overlaps
+  /*
   Load(numRuns);
   std::cerr << "vector size: " << all_read_pairs.size() << std::endl;
-  std::cerr << "test: " << all_read_pairs[0].size() << std::endl;
+  std::cerr << "test: " << all_read_pairs[0].size() << std::endl;*/ 
 
   // graph -- 1 contig == 1 node
   /*
