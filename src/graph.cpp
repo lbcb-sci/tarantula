@@ -110,7 +110,7 @@ void Graph::Construct(
       continue;
     }
     // less than 4GB
-    if (bytes >= (1ULL << 28) || i >= sequences.size()-1) {
+    if (bytes >= (1ULL << 32) || i >= sequences.size()-1) {
       // wait for futures
       for (auto& it : futures) {
         // if it == empty , discard
