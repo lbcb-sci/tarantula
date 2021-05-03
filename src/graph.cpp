@@ -98,6 +98,8 @@ void Graph::Construct(
   std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
   std::cerr << "[tarantula::Construct] Total number of sequence: "
             << sequences.size() << std::endl;
+  
+  int numRuns = 0;
   for (std::uint32_t i=0; i< sequences.size()-1; i++) {
     if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
       num_pair+=1;
@@ -108,7 +110,7 @@ void Graph::Construct(
       continue;
     }
     // less than 4GB
-    if (bytes >= (1ULL << 32) || i >= sequences.size()-1) {
+    if (bytes >= (1ULL << 28) || i >= sequences.size()-1) {
       // wait for futures
       for (auto& it : futures) {
         // if it == empty , discard
@@ -176,10 +178,13 @@ void Graph::Construct(
       // interwindow links
       GenerateMatrixWindowIntraLinks(window_id_map, window_matrix, read_pairs);
 
+      // save overlaps
+      Store(numRuns);
       // discard read pair
       read_pairs.clear();
       futures.clear();
       bytes = 0;
+      numRuns++;
     }
   }
   // inter.close();
@@ -216,9 +221,6 @@ void Graph::Construct(
   std::cerr << "[tarantula::Construct] Number of pairs that discard as both pair hav no overlaps, filtered size > 4: "
             << no_ol_2_mt_4 << std::endl;
   std::cerr << "[tarantula::Construct]-------------------------------------------------" << std::endl;
-
-  // save overlaps
-  Store();
 
   CalcualteInterChromosomeLinks(interchromosome_read_pairs);
   uint32_t sum_interchromosome_links = 0, sum_intrachromosome_links = 0;
@@ -334,7 +336,10 @@ void Graph::Construct(
   }
 
   
-
+  // load overlaps
+  Load(numRuns);
+  std::cerr << "vector size: " << all_read_pairs.size() << std::endl;
+  std::cerr << "test: " << all_read_pairs[0].size() << std::endl;
 
   // graph -- 1 contig == 1 node
   /*
@@ -952,8 +957,8 @@ void Graph::PrintJson(const std::string& path) const {
 }
 
 
-void Graph::Store() const {
-  std::ofstream os("overlaps.cereal");
+void Graph::Store(int i) const {
+  std::ofstream os("overlaps_" + to_string(i) + ".cereal");
   try {
     cereal::BinaryOutputArchive archive(os);
     archive(*this);
@@ -963,14 +968,18 @@ void Graph::Store() const {
   }
 }
 
-void Graph::Load() {
-  std::ifstream is("overlaps.cereal");
-  try {
-    cereal::BinaryInputArchive archive(is);
-    archive(*this);
-  } catch (std::exception&) {
-    throw std::logic_error(
-        "[tarantula::Construct] error: unable to load archive");
+void Graph::Load(int i) {
+  for (int r = 0; r < i; r++) {
+    std::ifstream is("overlaps_" + to_string(r) + ".cereal");
+    try {
+      cereal::BinaryInputArchive archive(is);
+      archive(*this);
+      all_read_pairs.emplace_back(read_pairs);
+      read_pairs.clear();
+    } catch (std::exception&) {
+      throw std::logic_error(
+          "[tarantula::Construct] error: unable to load archive");
+    }
   }
 }
 

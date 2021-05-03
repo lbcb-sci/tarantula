@@ -111,9 +111,10 @@ class Graph {
   std::unordered_map<std::uint32_t, Node> contigs;
   std::vector<std::vector<std::uint32_t>> adjMatrix;
   std::unordered_map<std::string, std::vector<biosoup::Overlap>> read_pairs;
+  std::vector<std::unordered_map<std::string, std::vector<biosoup::Overlap>>> all_read_pairs;
   std::unordered_map<std::string, std::vector<biosoup::Overlap>> interchromosome_read_pairs;
   uint32_t window_size;
-  
+    
   template<class Archive>
   void serialize(Archive & archive) {
     archive(CEREAL_NVP(read_pairs), CEREAL_NVP(interchromosome_read_pairs)); // serialize things by passing them to the archive
@@ -158,8 +159,8 @@ class Graph {
   std::uint32_t MaxInter(std::vector<std::vector<std::uint32_t>> &matrix);
   std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix);
 
-  void Store() const;
-  void Load();
+  void Store(int i) const;
+  void Load(int i);
 };
 
 }  // namespace tarantula
