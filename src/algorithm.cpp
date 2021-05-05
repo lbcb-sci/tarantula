@@ -514,19 +514,60 @@ void generateOutputFile(
   outfile << "50,50"<< std::endl; 
 }
 
-void GenerateGraphFromDirectedForceAlgorithm(std::string input, std::string output) {
+void GenerateGraphFromDirectedForceAlgorithm(
+  std::string input,
+  std::string output) {
   // params
   int iterations = 1000, width = 1000, length = 1000;  
-  int algoType = 0;  // default is barnes hut
+  int algoType = 1;  // default is barnes hut
+  bool dynamic = true, random = false, color = false;
+  double mass = 10, theta = 0.01; 
+  std::vector<std::vector<double>> edges;
+  std::unordered_map<std::string, int> map_table;
+  std::vector<std::shared_ptr<Vertex>> vertices;
+  std::cerr << "\n[GraphVisualisation] " << input << std::endl;
+  std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
+
+  map_table = parseTxtFile(input, vertices, edges, output, color);
+  if (vertices.size() == 0) {
+    return;
+  }
+  
+  initVerticesPosition(vertices, width, length, random); 
+
+  std::cerr << "[GraphVisualisation] calculating, iterations: " 
+            << iterations << std::endl;
+  directedForceAlgorithm(
+    vertices, 
+    edges, 
+    width, 
+    length, 
+    iterations, 
+    algoType, 
+    theta, 
+    mass, 
+    dynamic);
+
+  std::cerr << "[GraphVisualisation] Generating output" << std::endl;
+  generateOutputFile(input, output, vertices, map_table);
+    
+  std::cerr << "[GraphVisualisation] txt file generated" << std::endl;
+}
+
+void GenerateGraphFromDirectedForceAlgorithm(
+  std::string input,
+  std::string output,
+  std::vector<std::shared_ptr<Vertex>>& vertices,
+  std::vector<std::vector<double>>& edges,
+  std::unordered_map<std::string, int>& map_table) {
+  // params
+  int iterations = 1000, width = 1000, length = 1000;  
+  int algoType = 1;  // default is barnes hut
   bool dynamic = true, random = false, color = false;
   double mass = 10, theta = 0.01; 
 
-  std::vector<std::shared_ptr<Vertex>> vertices;
-  std::vector<std::vector<double>> edges;
   std::cerr << "\n[GraphVisualisation] " << input << std::endl;
   std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
-  std::unordered_map<std::string, int> map_table;
-
 
   map_table = parseTxtFile(input, vertices, edges, output, color);
   if (vertices.size() == 0) {
