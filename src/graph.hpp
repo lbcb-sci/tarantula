@@ -153,6 +153,12 @@ class Graph {
   std::vector<std::vector<std::uint32_t>> &matrix,
   std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
 
+  void GenerateMatrixAftSplitWindow(
+    int contig_id,
+    std::unordered_map<int, pair<int, bool>>& window_split_map,
+    std::vector<std::vector<std::uint32_t>> &matrix,
+    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
+
   // REMOVE
   void GenerateMatrixWindowIntraLinks(
     std::vector<int>& window_id_map,
@@ -171,7 +177,7 @@ class Graph {
   std::uint32_t MaxInMatrix(std::vector<std::vector<std::uint32_t>> &matrix);
   std::uint32_t MaxInter(std::vector<std::vector<std::uint32_t>> &matrix);
   std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix);
-  int FindContigID(int window_id, std::vector<int> window_id_map, int *begin, int *end);
+  int FindContigID(int window_id, std::vector<int>& window_id_map, int *begin, int *end);
   
   void Store(int i) const;
   void Load(int i);

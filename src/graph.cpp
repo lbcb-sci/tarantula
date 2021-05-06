@@ -321,7 +321,7 @@ void Graph::Construct(
   }
 
   // directed force
-  
+  //window_id_map.size()
   for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
     std::string input = "contig_" + std::to_string(i) + ".txt";
     std::string output = "contig_" + std::to_string(i) + "_output.txt";
@@ -398,7 +398,7 @@ void Graph::Construct(
     // change to if edge > 2x median --> window id
 
     for (auto& conseq_edge : conseq_edges_length) {
-      if (get<0>(conseq_edge) >= median_conseq_edges) {
+      if (get<0>(conseq_edge) >= median_conseq_edges*3) {
         long_edges.emplace_back(conseq_edge);
         window_id_iter = window_id.find(get<1>(conseq_edge));
         if (window_id_iter == window_id.end()) {
@@ -442,6 +442,11 @@ void Graph::Construct(
     }
     std::cerr << "get long edge" << std::endl;
 
+    if (long_edges.size() == 0) {
+      std::cerr << "contig " << i  << " have no long edges" << std::endl;
+      continue;
+    }
+
     /*
     std::unordered_map<std::string, std::vector<biosoup::Overlap>> long_edges_overlap;
     // load the overlaps & take the overlaps for that specific 2 windows and slice it into 1kbp
@@ -462,6 +467,50 @@ void Graph::Construct(
     // ^ or dont even nid to filter, just clear the matrix to make another matrix
 
     std::cerr << "crash where?" << std::endl;
+
+    // map table
+    
+    // matrix index, split = true
+    std::unordered_map<int, pair<int, bool>> window_split_map;
+    std::unordered_map<int, pair<int, bool>>::iterator window_split_map_iter;
+
+    int num_windows_this_contig = window_id_map[i+1] - window_id_map[i];
+    int start = window_id_map[i];
+    int end = window_id_map[i+1];
+    int starting_node_number = 0;
+    int window_id_in_each_contig = 0;
+    for (int r = start; r < end; r++) {
+      window_id_iter = window_id.find(r);
+      if (window_id_iter != window_id.end()) {
+        window_split_map.insert({window_id_in_each_contig, {starting_node_number, true}});
+        starting_node_number += 25;
+      } else {
+        window_split_map.insert({window_id_in_each_contig, {starting_node_number, false}});
+        starting_node_number += 1;
+      }
+      window_id_in_each_contig++;
+    }
+
+    std::cerr << "matrix size: " << starting_node_number << std::endl;
+
+
+    // map table, only for that 1 contig | format: all the contig, then split contigs
+    /*
+    int starting_node_number = window_id_map[i+1] - window_id_map[i];
+    std::cerr << "Starting node number: " << starting_node_number << std::endl;
+    std::cerr << "Number of windows: " << window_id.size() << std::endl;
+    std::unordered_map<int, int> window_split_map;
+    std::unordered_map<int, int>::iterator window_split_map_iter;
+
+    for (auto& window : window_id) {
+      window_split_map_iter = window_split_map.find(window.first);
+      if (window_split_map_iter == window_split_map.end()) {
+        window_split_map.insert({window.first, starting_node_number});
+        starting_node_number += 25;
+      }
+    }*/
+
+    /*
     // map table
 
     int starting_node_number = window_matrix.size();
@@ -476,11 +525,11 @@ void Graph::Construct(
         window_split_map.insert({window.first, starting_node_number});
         starting_node_number += 25;
       }
-    }
+    }*/
 
     // print window split map
     for (auto& window_split : window_split_map) {
-      std::cerr << "window: " << window_split.first << ", map: " << window_split.second << std::endl;
+      std::cerr << "window: " << window_split.first << ", map: " << window_split.second.first << " ," << window_split.second.second <<  std::endl;
     }
 
     std::cerr << "crash where?" << std::endl;
@@ -492,7 +541,7 @@ void Graph::Construct(
     for (int r = 0; r < numRuns; r++) {
       Load(r);
       std::cerr << "load sucess? " << read_pairs.size() << std::endl;
-      GenerateMatrixAftSplitWindow(window_id_map, window_split_map, window_split_matrix, read_pairs);
+      GenerateMatrixAftSplitWindow(i, window_split_map, window_split_matrix, read_pairs);
     }
 
     std::cerr << "after generate matrix, split matrix size: " << window_split_matrix.size() << std::endl;
@@ -544,7 +593,22 @@ void Graph::Construct(
 
     // split into window into 1kbp
     std::cerr << "csv done" << std::endl;
+
+    /*
+    std::vector<std::shared_ptr<directedforce::Vertex>> vertices_aft_split;
+    std::vector<std::vector<double>> edges_aft_split;
+    std::unordered_map<std::string, int> map_table_aft_split;*/
     
+    myfile.open("contig_" + std::to_string(i) + "_split.txt");
+    for (int r = 0; r < window_split_matrix.size(); r++) {
+      for (int x = 0; x < r; x++) {
+        if (window_split_matrix[r][x] != 0)
+          myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
+      } 
+    }
+    myfile.close();
+
+    /*
     myfile.open("contig_" + std::to_string(i) + "_split.txt");
     start = window_id_map[i];
     if (i+1 == window_id_map.size()) {
@@ -564,7 +628,7 @@ void Graph::Construct(
           myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
       }
     }
-    myfile.close();
+    myfile.close();*/
 
     std::cerr << "txt file done" << std::endl;
   
@@ -728,7 +792,7 @@ void Graph::Construct(
 }
 
 
-int Graph::FindContigID(int window_id, std::vector<int> window_id_map, int *begin, int *end) {
+int Graph::FindContigID(int window_id, std::vector<int>& window_id_map, int *begin, int *end) {
   for (int i = 0; i < window_id_map.size(); i++) {
     if (window_id < window_id_map[i]) {
       *begin = (window_id - window_id_map[i-1])*window_size;
@@ -792,6 +856,66 @@ void Graph::GenerateMatrixWindowIntraLinks(
     matrix[window_id_2][window_id_1]+=1;
   }
 }
+
+// windows split in order
+void Graph::GenerateMatrixAftSplitWindow(
+  int contig_id,
+  std::unordered_map<int, pair<int, bool>>& window_split_map,
+  std::vector<std::vector<std::uint32_t>> &matrix,
+  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs) {
+    std::unordered_map<int, pair<int, bool>>::iterator window_split_map_iter;
+
+    int window_id_1 = -1, window_id_2 = -1;
+    for (const auto& rp : read_pairs) {
+      if (rp.second[0].rhs_id == contig_id) {
+        // find window 
+        int window_index_begin_1 = rp.second[0].rhs_begin/window_size;
+        int window_index_begin_2 = rp.second[1].rhs_begin/window_size;
+
+        window_split_map_iter = window_split_map.find(window_index_begin_1);
+        if (window_split_map_iter != window_split_map.end()) {
+          if (window_split_map_iter->second.second) {
+            // split window
+            int split_window_id = (rp.second[0].rhs_begin - window_index_begin_1*window_size)/1000;
+            //std::cerr << "split window id 1: " << split_window_id << std::endl;
+            window_id_1 = window_split_map_iter->second.first + split_window_id;
+          } else {
+            window_id_1 = window_split_map_iter->second.first;
+          }
+        } else {
+          std::cerr << "ERROR IN MAPPING" << std::endl;
+        }
+
+        window_split_map_iter = window_split_map.find(window_index_begin_2);
+        if (window_split_map_iter != window_split_map.end()) {
+          if (window_split_map_iter->second.second) {
+            // split window
+            int split_window_id = (rp.second[1].rhs_begin - window_index_begin_2*window_size)/1000;
+            //std::cerr << "split window id 2: " << split_window_id << std::endl;
+            window_id_2 = window_split_map_iter->second.first + split_window_id;
+          } else {
+            window_id_2 = window_split_map_iter->second.first;
+          }
+        } else {
+          std::cerr << "ERROR IN MAPPING" << std::endl;
+        }
+        //std::cerr << "window id 1: " << window_id_1 << " ,window_id_2: " << window_id_2 << std::endl;
+        if (window_id_1 != -1 && window_id_2 != -1) {
+          matrix[window_id_1][window_id_2] += 1;
+          matrix[window_id_2][window_id_1] += 1;
+        } else {
+          std::cerr << "window index not assigned" << std::endl;
+        }
+        
+
+        window_id_1 = -1;
+        window_id_2 = -1;
+        
+      }
+    }
+  }
+
+/*
 void Graph::GenerateMatrixAftSplitWindow(
   std::vector<int>& window_id_map,
   std::unordered_map<int, int>& window_split_map,
@@ -837,7 +961,7 @@ void Graph::GenerateMatrixAftSplitWindow(
         }
       }
     }
-  }
+  }*/
 
 
 void Graph::GenerateMatrixWindowIntraLinks(
@@ -1060,10 +1184,10 @@ void Graph::Process(
     const std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     const std::unique_ptr<biosoup::NucleicAcid>& sequence2)
     -> std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>{
-      std::vector<std::uint32_t> filtered1, filtered2;
+      //std::vector<std::uint32_t> filtered1, filtered2;
       std::vector<std::vector<biosoup::Overlap>> minimizer_result, minimizer_result_long_read;
-      minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false, false, &filtered1));
-      minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false, false, &filtered2));
+      minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false, false));
+      minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false, false));
       auto long_read_len = sequence1->inflated_len*0.75;
 
       // no overlap for 1 / both
@@ -1071,21 +1195,21 @@ void Graph::Process(
         // no overlap, discard
         if (minimizer_result[0].size() > 0 || minimizer_result[1].size() > 0) {
           // minimizer_result.clear();
-          
+          /*
           if (filtered1.size() > 4 || filtered2.size() > 4)
             return {{"1_overlap_mt_4", {}}};
           if (filtered1.size() > 0 || filtered2.size() > 0)
-            return {{"1_overlap_mt_0", {}}};
+            return {{"1_overlap_mt_0", {}}};*/
 
           //minimizer_result.clear();
           return {{"1_overlap", {}}};
         } else {
           // minimizer_result.clear();
-          
+          /*
           if (filtered1.size() > 4 || filtered2.size() > 4)
             return {{"empty_mt_4", {}}};
           if (filtered1.size() > 0 || filtered2.size() > 0)
-            return {{"empty_mt_0", {}}};
+            return {{"empty_mt_0", {}}};*/
           //minimizer_result.clear();
           return {{"empty", {}}};
         }
@@ -1104,10 +1228,11 @@ void Graph::Process(
 
       // no long reads for 1 / both
       if (minimizer_result_long_read[0].size() == 0 || minimizer_result_long_read[1].size() == 0) {
+        /*
         if (filtered1.size() > 4 || filtered2.size() > 4)
           return {{sequence1->name + "__multiple_short_reads_mt_4", {}}};
         if (filtered1.size() > 0 || filtered2.size() > 0)
-          return {{sequence1->name + "_multiple_short_reads_mt_0", {}}};
+          return {{sequence1->name + "_multiple_short_reads_mt_0", {}}};*/
         return {{sequence1->name + "_multiple_short_reads", {}}};
       }
         

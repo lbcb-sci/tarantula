@@ -82,7 +82,7 @@ void calculateAttrativeForce(vector<shared_ptr<Vertex>>& vertices, vector<vector
 
 void calculateForceBruteForce(vector<shared_ptr<Vertex>>& vertices, vector<vector<double>>& adjMax, double k) {
   MathVector diff; 
-  double diffABS, abs; 
+  double diffABS; 
   int numVertices = vertices.size(); 
   for (int i = 0; i < numVertices; i++) {
     vertices[i]->disp = 0; 
@@ -162,7 +162,7 @@ Box getBoundingBox(vector<shared_ptr<Vertex>>& vertices) {
       yMax = vertices[i]->pos.y; 
     }
   }
-  Box box = {{xMin, yMin}, {xMax, yMin}, {xMax, yMax}, {xMin, yMax}}; 
+  Box box(xMin, yMin, xMax, yMin, xMax, yMax, xMin, yMax);
   return box; 
 }
 
@@ -176,7 +176,8 @@ void initTree(shared_ptr<Node>& root, double width, double length, vector<shared
   if (dynamic) {
     root->box = getBoundingBox(vertices);     
   } else {
-    root->box = {{0, 0}, {width, 0}, {width, length}, {0, length}}; 
+    Box box(0, 0, width, 0, width, length, 0, length); 
+    root->box = box;
   }
 }
 
