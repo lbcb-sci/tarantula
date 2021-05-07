@@ -35,6 +35,20 @@ namespace biosoup {
 
 namespace tarantula {
 
+struct Link {
+  std::uint32_t rhs_id;
+  std::uint32_t rhs_begin;
+  std::uint32_t rhs_end;
+  std::uint32_t lhs_id;
+  std::uint32_t lhs_begin;
+  std::uint32_t lhs_end;
+
+  template<class Archive>
+  void serialize(Archive & archive) {
+    archive(rhs_id, rhs_begin, rhs_end, lhs_id, lhs_begin, lhs_end);
+  }
+};
+
 struct Window{
   uint32_t id;
   uint32_t interchromosome_links;
@@ -110,65 +124,47 @@ class Graph {
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
   std::unordered_map<std::uint32_t, Node> contigs;
   std::vector<std::vector<std::uint32_t>> adjMatrix;
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>> read_pairs;
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>> interchromosome_read_pairs;
+  std::vector<Link> intra_links;
+  std::vector<Link> inter_links;
   uint32_t window_size;
     
   template<class Archive>
   void serialize(Archive & archive) {
-    archive(CEREAL_NVP(read_pairs), CEREAL_NVP(interchromosome_read_pairs)); // serialize things by passing them to the archive
+    archive(CEREAL_NVP(intra_links), CEREAL_NVP(inter_links)); // serialize things by passing them to the archive
   }
 
+  bool isIntraLink(Link &link);
+
   void Process(
-    std::vector<std::future<std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>>>& futures,
+    std::vector<std::future<std::vector<Link>>>& futures,
     ram::MinimizerEngine& minimizer_engine,
     std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     std::unique_ptr<biosoup::NucleicAcid>& sequence2);
 
-  std::pair<std::uint32_t, std::uint32_t> GetOverlap(
-    biosoup::Overlap ol1,
-    biosoup::Overlap ol2); 
+  std::pair<std::uint32_t, std::uint32_t> GetOverlap(const Link& link); 
 
-  void FillPileogram(std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
+  void FillPileogram();
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
   int GetNumWindows();
 
-  void CalcualteInterChromosomeLinks(
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs);
+  void CalcualteInterChromosomeLinks();
 
   void GenerateMatrix(
-    std::vector<std::vector<std::uint32_t>> &matrix, 
-    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs);
+    std::vector<std::vector<std::uint32_t>> &matrix);
   
   void GenerateMatrixWindowIntraLinks(
     std::vector<int>& window_id_map,
-    std::vector<std::vector<std::uint32_t>> &matrix,
-    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
+    std::vector<std::vector<std::uint32_t>> &matrix);
   
-  void GenerateMatrixAftSplitWindow(
-  std::vector<int>& window_id_map,
-  std::unordered_map<int, int>& window_split_map,
-  std::vector<std::vector<std::uint32_t>> &matrix,
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
-
   void GenerateMatrixAftSplitWindow(
     int contig_id,
     std::unordered_map<int, pair<int, bool>>& window_split_map,
-    std::vector<std::vector<std::uint32_t>> &matrix,
-    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs);
-
-  // REMOVE
-  void GenerateMatrixWindowIntraLinks(
-    std::vector<int>& window_id_map,
-    std::vector<std::vector<std::uint32_t>> &matrix,
-    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs,
-    int window_size);
+    std::vector<std::vector<std::uint32_t>> &matrix);
 
   void GenerateMatrixWindow(
     std::vector<int>& window_id_map,
-    std::vector<std::vector<std::uint32_t>> &matrix,
-    std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs);
+    std::vector<std::vector<std::uint32_t>> &matrix);
   
   std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
 
