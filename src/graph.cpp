@@ -483,7 +483,7 @@ void Graph::Construct(
       window_id_iter = window_id.find(r);
       if (window_id_iter != window_id.end()) {
         window_split_map.insert({window_id_in_each_contig, {starting_node_number, true}});
-        starting_node_number += 25;
+        starting_node_number += 5;
       } else {
         window_split_map.insert({window_id_in_each_contig, {starting_node_number, false}});
         starting_node_number += 1;
@@ -876,7 +876,7 @@ void Graph::GenerateMatrixAftSplitWindow(
         if (window_split_map_iter != window_split_map.end()) {
           if (window_split_map_iter->second.second) {
             // split window
-            int split_window_id = (rp.second[0].rhs_begin - window_index_begin_1*window_size)/1000;
+            int split_window_id = (rp.second[0].rhs_begin - window_index_begin_1*window_size)/5000;
             //std::cerr << "split window id 1: " << split_window_id << std::endl;
             window_id_1 = window_split_map_iter->second.first + split_window_id;
           } else {
@@ -890,7 +890,7 @@ void Graph::GenerateMatrixAftSplitWindow(
         if (window_split_map_iter != window_split_map.end()) {
           if (window_split_map_iter->second.second) {
             // split window
-            int split_window_id = (rp.second[1].rhs_begin - window_index_begin_2*window_size)/1000;
+            int split_window_id = (rp.second[1].rhs_begin - window_index_begin_2*window_size)/5000;
             //std::cerr << "split window id 2: " << split_window_id << std::endl;
             window_id_2 = window_split_map_iter->second.first + split_window_id;
           } else {

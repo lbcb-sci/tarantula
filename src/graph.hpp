@@ -111,7 +111,6 @@ class Graph {
   std::unordered_map<std::uint32_t, Node> contigs;
   std::vector<std::vector<std::uint32_t>> adjMatrix;
   std::unordered_map<std::string, std::vector<biosoup::Overlap>> read_pairs;
-  std::vector<std::unordered_map<std::string, std::vector<biosoup::Overlap>>> all_read_pairs;
   std::unordered_map<std::string, std::vector<biosoup::Overlap>> interchromosome_read_pairs;
   uint32_t window_size;
     
