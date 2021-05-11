@@ -152,8 +152,7 @@ class Graph {
     std::vector<std::vector<std::uint32_t>> &matrix);
   
   void GenerateMatrixWindowIntraLinks(
-    std::vector<int>& window_id_map,
-    std::vector<std::vector<std::uint32_t>> &matrix);
+    std::unordered_map<std::uint32_t, ::vector<std::vector<std::uint32_t>>> &matrix);
   
   void GenerateMatrixAftSplitWindow(
     int contig_id,

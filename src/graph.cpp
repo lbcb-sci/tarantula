@@ -80,7 +80,23 @@ void Graph::Construct(
   std::vector<int> window_id_map = GenerateMapWindowID();
   int total_windows = GetNumWindows();
   std::cerr << "[tarantula::Construct] Number of windows = " << total_windows << std::endl;
-  std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
+  //std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
+
+  // window matrix per contig
+  std::unordered_map<std::uint32_t, ::vector<std::vector<std::uint32_t>>> window_matrix_all_contig;
+
+  // initialise window matrix per contig
+  for (int i = 1; i <= window_id_map.size(); i ++) {
+    int size;
+    if (i == window_id_map.size())
+      size = total_windows - window_id_map[i-1];
+    else
+      size = window_id_map[i] - window_id_map[i-1];
+    std::vector<std::vector<std::uint32_t>> temp_matrix(size, std::vector<std::uint32_t>(size, 0));
+    window_matrix_all_contig.insert({i-1,temp_matrix});
+  }
+
+
   std::cerr << "[tarantula::Construct] Total number of sequence: "
             << sequences.size() << std::endl;
   
@@ -133,8 +149,8 @@ void Graph::Construct(
                 << std::endl;*/
 
       // interwindow links
-      GenerateMatrixWindowIntraLinks(window_id_map, window_matrix);
-
+      GenerateMatrixWindowIntraLinks(window_matrix_all_contig);
+      std::cerr << "[tarantula::Construct] Generate matrix window intra links" << std::endl;
       // save overlaps
       Store(numRuns);
       // discard read pair
@@ -206,29 +222,34 @@ void Graph::Construct(
 
   // window matrix csv
   
-  GenerateMatrixWindow(window_id_map, window_matrix);
-  std::cerr << "[tarantula::Construct] Generation of window matrix done" << std::endl;
-  myfile.open("window_matrix.csv");
-  
-  string output = ",";
-  for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
-    output += std::to_string(i) + ",";
-  }
-  output += "Total\n";
-  myfile << output;
+  //GenerateMatrixWindow(window_id_map, window_matrix_all_contig);
+  //std::cerr << "[tarantula::Construct] Generation of window matrix done" << std::endl;
 
-  for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
-    auto sum = 0;
-    output ="";
-    output += std::to_string(i);
-    for (int r = 0; r < static_cast<int>(window_matrix[i].size()); r++) {
-      output += "," + std::to_string(window_matrix[i][r]);
-      sum += window_matrix[i][r];
+  for (const auto& window_matrix : window_matrix_all_contig) {
+    string file_name = "window_matrix_contig_" + std::to_string(window_matrix.first) + ".csv";
+    myfile.open(file_name);
+  
+    string output = ",";
+    for (int i = 0; i < static_cast<int>(window_matrix.second.size()); i++) {
+      output += std::to_string(i) + ",";
     }
-    output += "," + std::to_string(sum)+"\n";
+    output += "Total\n";
     myfile << output;
+
+    for (int i = 0; i < static_cast<int>(window_matrix.second.size()); i++) {
+      auto sum = 0;
+      output ="";
+      output += std::to_string(i);
+      for (int r = 0; r < static_cast<int>(window_matrix.second[i].size()); r++) {
+        output += "," + std::to_string(window_matrix.second[i][r]);
+        sum += window_matrix.second[i][r];
+      }
+      output += "," + std::to_string(sum)+"\n";
+      myfile << output;
+    }
+    myfile.close(); 
   }
-  myfile.close(); 
+
 
   for (const auto& contig : contigs) {
     sum_interchromosome_links += contig.second.interchromosome_links;
@@ -245,18 +266,12 @@ void Graph::Construct(
 
   int start, end;
 
-  for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
-    myfile.open("contig_" + std::to_string(i) + ".txt");
-    start = window_id_map[i];
-    if (i+1 == window_id_map.size()) {
-      end = window_matrix.size();
-    } else {
-      end = window_id_map[i+1];
-    }
-    for (int r = start; r < end; r++) {
-      for (int x = start; x < r; x++) {
-        if (window_matrix[r][x] != 0)
-          myfile << r << "--" << x << "," << window_matrix[r][x] << "\n";
+  for (const auto& window_matrix : window_matrix_all_contig) {
+    myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
+    for (int r = 0; r < window_matrix.second.size(); r++) {
+      for (int x = 0; x < r; x++) {
+        if (window_matrix.second[r][x] != 0)
+          myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
       }
     }
     myfile.close();
@@ -480,7 +495,7 @@ void Graph::Construct(
     std::cerr << "crash where?" << std::endl;
 
     std::cerr << "number of windows that require splitting: " << window_id.size() << std::endl;
-    std::cerr << "original matrix size: " << window_matrix.size() << std::endl; 
+    //std::cerr << "original matrix size: " << window_matrix.size() << std::endl; 
     std::cerr << "current matrix size aft splitting: " << starting_node_number << std::endl; 
     std::vector<std::vector<std::uint32_t>> window_split_matrix(starting_node_number, std::vector<std::uint32_t>(starting_node_number, 0));
     for (int r = 0; r < numRuns; r++) {
@@ -793,16 +808,16 @@ std::vector<int> Graph::GenerateMapWindowID() {
 }
 
 void Graph::GenerateMatrixWindowIntraLinks(
-  std::vector<int>& window_id_map,
-  std::vector<std::vector<std::uint32_t>> &matrix) {
+  std::unordered_map<std::uint32_t, ::vector<std::vector<std::uint32_t>>> &matrix) {
+    std::unordered_map<std::uint32_t, ::vector<std::vector<std::uint32_t>>>::iterator matrix_iter;
     for (const auto& intra_link : intra_links) {
-      int window_index_begin_1 = intra_link.rhs_begin/window_size;
-      int window_index_begin_2 = intra_link.lhs_begin/window_size;
-      int window = window_id_map[intra_link.rhs_id];
-      int window_id_1 = window + window_index_begin_1;
-      int window_id_2 = window + window_index_begin_2;
-      matrix[window_id_1][window_id_2]+=1;
-      matrix[window_id_2][window_id_1]+=1;
+      matrix_iter = matrix.find(intra_link.rhs_id);
+      if (matrix_iter == matrix.end())
+        std::cerr << "ERROR IN GENERATING INTRA LINKS WINDOW MATRIX" << std::endl;
+      int window_id_1= intra_link.rhs_begin/window_size;
+      int window_id_2 = intra_link.lhs_begin/window_size;
+      matrix_iter->second[window_id_1][window_id_2]+=1;
+      matrix_iter->second[window_id_2][window_id_1]+=1;
     }
   }
 
@@ -980,6 +995,7 @@ std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix) {
   return max;
 }
 
+// for interlinks
 void Graph::GenerateMatrixWindow(
   std::vector<int>& window_id_map,
   std::vector<std::vector<std::uint32_t>> &matrix) {
