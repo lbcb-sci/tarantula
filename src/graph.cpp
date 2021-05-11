@@ -2,6 +2,8 @@
 
 #include "graph.hpp"
 
+#include <cstdlib> 
+
 #include <fstream>
 #include <iostream>
 #include <queue>
@@ -26,7 +28,7 @@ void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
-  double frequency = 0.00001;
+  double frequency = 0.0001;
 
   // statistics
   int num_pair = 0;
@@ -99,6 +101,13 @@ void Graph::Construct(
         // if it == empty , discard
         auto result_vector = it.get();
         for (auto& result : result_vector) {
+          try {
+            if (intra_links.capacity() == intra_links.size()) 
+              intra_links.reserve(intra_links.capacity() * 1.1);
+          }
+          catch (...) {
+            std::cerr << "RESERVATION OF MEMORY FAILED\n";
+          } 
           if (isIntraLink(result)) {
             intra_links.emplace_back(result);
           } else {
@@ -115,13 +124,13 @@ void Graph::Construct(
           << std::endl;
 
       // fill pile-o-gram
-      
+      /*
       timer.Start();
       FillPileogram();
       std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
                 << contigs.size() << " "
                 << timer.Stop() << "s"
-                << std::endl;
+                << std::endl;*/
 
       // interwindow links
       GenerateMatrixWindowIntraLinks(window_id_map, window_matrix);
@@ -979,32 +988,13 @@ void Graph::GenerateMatrixWindow(
 
   for (const auto& inter_link : inter_links) {
     int window_index_begin_1 = inter_link.rhs_begin/window_size;
-    int window_index_end_1 = inter_link.rhs_end/window_size;
     int window_index_begin_2 = inter_link.lhs_begin/window_size;
-    int window_index_end_2 = inter_link.lhs_end/window_size;
     int id_1 = inter_link.rhs_id;
     int id_2 = inter_link.lhs_id;
 
     int window_id_1_begin = window_index_begin_1+window_id_map[id_1];
     int window_id_2_begin = window_index_begin_2+window_id_map[id_2];
 
-    if (window_index_begin_1 != window_index_end_1) {
-      int window_id_1_end = window_index_end_1 + window_id_map[id_1];
-      if (window_index_begin_2 != window_index_end_2) {
-        int window_id_2_end = window_index_end_2 + window_id_map[id_2];
-        matrix[window_id_1_end][window_id_2_end] += 1;
-        matrix[window_id_2_end][window_id_1_end] += 1;
-      } else {
-        matrix[window_id_1_end][window_id_2_begin] += 1;
-        matrix[window_id_2_begin][window_id_1_end] += 1;
-      }
-      extra++;
-    } else if (window_index_begin_2 != window_index_end_2) {
-      int window_id_2_end = window_index_end_2 + window_id_map[id_2];
-      matrix[window_id_1_begin][window_id_2_end] += 1;
-      matrix[window_id_2_end][window_id_1_begin] += 1;
-      extra++;
-    }
     matrix[window_id_1_begin][window_id_2_begin] += 1;
     matrix[window_id_2_begin][window_id_1_begin] += 1;
   }
@@ -1012,42 +1002,25 @@ void Graph::GenerateMatrixWindow(
 
 void Graph::CalcualteInterChromosomeLinks() {
   std::unordered_map<std::uint32_t, Node>::iterator contig_iter;
-  int window_index_begin, window_index_end;
+  int window_index_begin;
   int extra = 0;
   for (const auto& inter_link : inter_links) {
     window_index_begin = inter_link.rhs_begin/window_size;
-    window_index_end = inter_link.rhs_end/window_size;
   
     contig_iter = contigs.find(inter_link.rhs_id);
     if (contig_iter == contigs.end()) {
       std::cerr << "ERROR contig not found" << std::endl;
     } else {
-      if (window_index_begin != window_index_end) {
-        contig_iter->second.windows[window_index_end].interchromosome_links++;
-        extra++;
-      }
       contig_iter->second.windows[window_index_begin].interchromosome_links++;
       contig_iter->second.interchromosome_links++;
     }
-    if (contig_iter->second.windows.size() <= window_index_end) {
-      std::cerr << "window size:" << contig_iter->second.windows.size() <<"window index: " << window_index_end << std::endl;
-    }
-
     window_index_begin = inter_link.lhs_begin/window_size;
-    window_index_end = inter_link.lhs_end/window_size;
     contig_iter = contigs.find(inter_link.lhs_id);
     if (contig_iter == contigs.end()) {
       std::cerr << "ERROR contig not found" << std::endl;
     } else {
-      if (window_index_begin != window_index_end) {
-        contig_iter->second.windows[window_index_end].interchromosome_links++;
-        extra++;
-      }
       contig_iter->second.windows[window_index_begin].interchromosome_links++;
       contig_iter->second.interchromosome_links++;
-    }
-    if (contig_iter->second.windows.size() <= window_index_end) {
-      std::cerr << "window size:" << contig_iter->second.windows.size() <<"window index: " << window_index_end << std::endl;
     }
   }
 }
@@ -1111,10 +1084,11 @@ void Graph::CalcualteInterChromosomeLinks(
   }
 }*/
 
+/*
 void Graph::FillPileogram() {
   std::unordered_map<std::uint32_t, Node>::iterator contig_iter;
   std::pair<std::uint32_t, std::uint32_t> overlap;
-  std::uint32_t min_overlap = UINT32_MAX, max_overlap = 0, average_overlap = 0;
+  std::uint32_t average_overlap = 0;
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
 
@@ -1127,10 +1101,11 @@ void Graph::FillPileogram() {
       contig_iter->second.intrachromosome_links++;
       
       // overlap
-      overlap = GetOverlap(intra_link);
-      auto length = std::get<1>(overlap) - std::get<0>(overlap);
-      min_overlap = (length < min_overlap) ? length:min_overlap;
-      max_overlap = (length > max_overlap) ? length:max_overlap;
+
+      auto length = intra_link.rhs_begin - intra_link.lhs_begin;
+      if (length < -1) {
+        length *= -1;
+      }
       average_overlap += length;
 
       // throw into overlap map
@@ -1150,11 +1125,10 @@ void Graph::FillPileogram() {
     contig_iter->second.pileogram.AddLayer(overlap_map_iter->second);
   }
   average_overlap /= intra_links.size();
+  
   std::cerr << "[tarantula::Construct] Stats: " << std::endl;
-  std::cerr << "[tarantula::Construct] min overlap: " << min_overlap << std::endl;
-  std::cerr << "[tarantula::Construct] max overlap: " << max_overlap << std::endl;
   std::cerr << "[tarantula::Construct] average overlap: " << average_overlap << std::endl;
-}
+}*/
 
 /*
 void Graph::FillPileogram() {  // NOLINT
@@ -1206,11 +1180,13 @@ void Graph::FillPileogram() {  // NOLINT
   std::cerr << "[tarantula::Construct] average overlap: " << average_overlap << std::endl;
 } */
 
+/*
 std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(const Link& link) {
   return std::make_pair(
     std::min(link.rhs_begin, link.lhs_begin),
     std::max(link.rhs_end,   link.lhs_end));
-}
+}*/
+
 /*
 std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(
     biosoup::Overlap ol1,
@@ -1262,11 +1238,9 @@ void Graph::Process(
           std::vector<Link> result;
           Link link = {
             minimizer_result_long_read[0][0].rhs_id,
-            minimizer_result_long_read[0][0].rhs_begin, 
-            minimizer_result_long_read[0][0].rhs_end,
             minimizer_result_long_read[1][0].rhs_id,
+            minimizer_result_long_read[0][0].rhs_begin, 
             minimizer_result_long_read[1][0].rhs_begin,
-            minimizer_result_long_read[1][0].rhs_end
             };
           
           result.emplace_back(link);
@@ -1306,14 +1280,13 @@ void Graph::Process(
             there_is_result = true;
             for (auto const& ol1 : std::get<0>(pair.second)) {
               for (auto const& ol2 : std::get<1>(pair.second)) {
-                result.push_back({
+                Link temp_link = {
                   ol1.rhs_id,
-                  ol1.rhs_begin,
-                  ol1.rhs_end,
                   ol2.rhs_id,
-                  ol2.rhs_begin, 
-                  ol2.rhs_end
-                });
+                  ol1.rhs_begin,
+                  ol2.rhs_begin};
+
+                result.push_back(temp_link);
               }
             }
           }

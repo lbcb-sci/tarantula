@@ -36,16 +36,14 @@ namespace biosoup {
 namespace tarantula {
 
 struct Link {
-  std::uint32_t rhs_id;
+  std::uint16_t rhs_id;
+  std::uint16_t lhs_id;
   std::uint32_t rhs_begin;
-  std::uint32_t rhs_end;
-  std::uint32_t lhs_id;
   std::uint32_t lhs_begin;
-  std::uint32_t lhs_end;
 
   template<class Archive>
   void serialize(Archive & archive) {
-    archive(rhs_id, rhs_begin, rhs_end, lhs_id, lhs_begin, lhs_end);
+    archive(rhs_id, lhs_id, rhs_begin, lhs_begin);
   }
 };
 
@@ -141,7 +139,7 @@ class Graph {
     std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     std::unique_ptr<biosoup::NucleicAcid>& sequence2);
 
-  std::pair<std::uint32_t, std::uint32_t> GetOverlap(const Link& link); 
+  //std::pair<std::uint32_t, std::uint32_t> GetOverlap(const Link& link); 
 
   void FillPileogram();
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
