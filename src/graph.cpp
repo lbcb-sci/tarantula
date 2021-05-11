@@ -1253,8 +1253,8 @@ void Graph::Process(
         if (minimizer_result_long_read[0].size() == 1 && minimizer_result_long_read[1].size() == 1) {
           std::vector<Link> result;
           Link link = {
-            minimizer_result_long_read[0][0].rhs_id,
-            minimizer_result_long_read[1][0].rhs_id,
+            static_cast<uint16_t>(minimizer_result_long_read[0][0].rhs_id),
+            static_cast<uint16_t>(minimizer_result_long_read[1][0].rhs_id),
             minimizer_result_long_read[0][0].rhs_begin, 
             minimizer_result_long_read[1][0].rhs_begin,
             };
@@ -1297,8 +1297,8 @@ void Graph::Process(
             for (auto const& ol1 : std::get<0>(pair.second)) {
               for (auto const& ol2 : std::get<1>(pair.second)) {
                 Link temp_link = {
-                  ol1.rhs_id,
-                  ol2.rhs_id,
+                  static_cast<uint16_t>(ol1.rhs_id),
+                  static_cast<uint16_t>(ol2.rhs_id),
                   ol1.rhs_begin,
                   ol2.rhs_begin};
 
