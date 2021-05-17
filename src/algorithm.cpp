@@ -522,7 +522,7 @@ void GenerateGraphFromDirectedForceAlgorithm(
   int iterations = 1000, width = 1000, length = 1000;  
   int algoType = 1;  // default is barnes hut
   bool dynamic = true, random = false, color = false;
-  double mass = 10, theta = 0.01; 
+  double mass = 1, theta = 0.01; 
   std::vector<std::vector<double>> edges;
   std::unordered_map<std::string, int> map_table;
   std::vector<std::shared_ptr<Vertex>> vertices;
@@ -565,7 +565,7 @@ void GenerateGraphFromDirectedForceAlgorithm(
   int iterations = 1000, width = 1000, length = 1000;  
   int algoType = 1;  // default is barnes hut
   bool dynamic = true, random = false, color = false;
-  double mass = 10, theta = 0.01; 
+  double mass = 1, theta = 0.01; 
 
   std::cerr << "\n[GraphVisualisation] " << input << std::endl;
   std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
@@ -575,6 +575,9 @@ void GenerateGraphFromDirectedForceAlgorithm(
     return;
   }
   
+  width = vertices.size();
+  length = vertices.size();
+
   initVerticesPosition(vertices, width, length, random); 
 
   std::cerr << "[GraphVisualisation] calculating, iterations: " 

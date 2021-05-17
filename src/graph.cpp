@@ -292,8 +292,14 @@ void Graph::Construct(
     directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
 
     // if no split into 5kbp for 20kbp
-    continue;
+    /*
+    // for raven, split only contig 1 & 15
+    if (i == 1 || i == 15) {
 
+    } else {
+      continue;
+    }*/
+    
     if (vertices_unmaped.size() == 0)
       continue;
     // map first
