@@ -338,11 +338,11 @@ void directedForceAlgorithm(
   MathVector diff; 
   double diffABS, abs; 
 
-  ProgressBar bar;
-  bar.set_bar_width(50);
-  bar.fill_bar_progress_with("■");
-  bar.fill_bar_remainder_with(" ");
-  float progress;
+  //ProgressBar bar;
+  //bar.set_bar_width(50);
+  //bar.fill_bar_progress_with("■");
+  //bar.fill_bar_remainder_with(" ");
+  //float progress;
   // in each iterations
   t = 1; 
   for (int iter = 1; iter <= iterations; iter++) {
@@ -361,8 +361,8 @@ void directedForceAlgorithm(
 
     t = cool(t); 
     // progress bar
-    progress = (static_cast<double>(iter/iterations))* 100;
-    bar.update(progress);
+    //progress = (static_cast<double>(iter/iterations))* 100;
+    //bar.update(progress);
   }
   std::cerr << std::endl;
 }
@@ -486,7 +486,7 @@ std::unordered_map<std::string, int> parseTxtFile(
     vertices.push_back(std::make_shared<Vertex>(vtemp[i])); 
   }
 
-  std::cerr << "[GraphVisualisation] number of nodes.." << vertices.size() << std::endl;
+  //std::cerr << "[GraphVisualisation] number of nodes.." << vertices.size() << std::endl;
   return table;
 }
 
@@ -526,8 +526,8 @@ void GenerateGraphFromDirectedForceAlgorithm(
   std::vector<std::vector<double>> edges;
   std::unordered_map<std::string, int> map_table;
   std::vector<std::shared_ptr<Vertex>> vertices;
-  std::cerr << "\n[GraphVisualisation] " << input << std::endl;
-  std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
+  //std::cerr << "\n[GraphVisualisation] " << input << std::endl;
+  //std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
 
   map_table = parseTxtFile(input, vertices, edges, output, color);
   if (vertices.size() == 0) {
@@ -536,8 +536,8 @@ void GenerateGraphFromDirectedForceAlgorithm(
   
   initVerticesPosition(vertices, width, length, random); 
 
-  std::cerr << "[GraphVisualisation] calculating, iterations: " 
-            << iterations << std::endl;
+  //std::cerr << "[GraphVisualisation] calculating, iterations: " 
+  //          << iterations << std::endl;
   directedForceAlgorithm(
     vertices, 
     edges, 
@@ -549,10 +549,10 @@ void GenerateGraphFromDirectedForceAlgorithm(
     mass, 
     dynamic);
 
-  std::cerr << "[GraphVisualisation] Generating output" << std::endl;
+  //std::cerr << "[GraphVisualisation] Generating output" << std::endl;
   generateOutputFile(input, output, vertices, map_table);
     
-  std::cerr << "[GraphVisualisation] txt file generated" << std::endl;
+  //std::cerr << "[GraphVisualisation] txt file generated" << std::endl;
 }
 
 void GenerateGraphFromDirectedForceAlgorithm(
@@ -567,8 +567,8 @@ void GenerateGraphFromDirectedForceAlgorithm(
   bool dynamic = true, random = false, color = false;
   double mass = 1, theta = 0.01; 
 
-  std::cerr << "\n[GraphVisualisation] " << input << std::endl;
-  std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
+  //std::cerr << "\n[GraphVisualisation] " << input << std::endl;
+  //std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
 
   map_table = parseTxtFile(input, vertices, edges, output, color);
   if (vertices.size() == 0) {
@@ -580,8 +580,8 @@ void GenerateGraphFromDirectedForceAlgorithm(
 
   initVerticesPosition(vertices, width, length, random); 
 
-  std::cerr << "[GraphVisualisation] calculating, iterations: " 
-            << iterations << std::endl;
+  //std::cerr << "[GraphVisualisation] calculating, iterations: " 
+  //          << iterations << std::endl;
   directedForceAlgorithm(
     vertices, 
     edges, 
@@ -593,10 +593,10 @@ void GenerateGraphFromDirectedForceAlgorithm(
     mass, 
     dynamic);
 
-  std::cerr << "[GraphVisualisation] Generating output" << std::endl;
+  //std::cerr << "[GraphVisualisation] Generating output" << std::endl;
   generateOutputFile(input, output, vertices, map_table);
     
-  std::cerr << "[GraphVisualisation] txt file generated" << std::endl;
+  //std::cerr << "[GraphVisualisation] txt file generated" << std::endl;
 }
 
 }  // namespace directedforce

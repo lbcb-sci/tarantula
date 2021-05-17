@@ -26,6 +26,11 @@ Graph::Graph(
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
+  std::vector<int> window_id_map;
+  int numRuns = 0;
+  std::ofstream myfile;
+ 
+  if (true) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
   double frequency = 0.0001;
@@ -75,9 +80,7 @@ void Graph::Construct(
   // filter pair + create pile-o-gram + less than 4GB
   timer.Start();
   std::size_t bytes = 0;
-  std::ofstream myfile, myfile2, myfile3;
-
-  std::vector<int> window_id_map = GenerateMapWindowID();
+  window_id_map = GenerateMapWindowID();
   int total_windows = GetNumWindows();
   std::cerr << "[tarantula::Construct] Number of windows = " << total_windows << std::endl;
   //std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
@@ -100,7 +103,6 @@ void Graph::Construct(
   std::cerr << "[tarantula::Construct] Total number of sequence: "
             << sequences.size() << std::endl;
   
-  int numRuns = 0;
   for (std::uint32_t i=0; i< sequences.size()-1; i++) {
     if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
       num_pair+=1;
@@ -139,15 +141,6 @@ void Graph::Construct(
           << timer.Stop() << "s"
           << std::endl;
 
-      // fill pile-o-gram
-      /*
-      timer.Start();
-      FillPileogram();
-      std::cerr << "[tarantula::Construct] Pile-o-gram created, number of nodes: "
-                << contigs.size() << " "
-                << timer.Stop() << "s"
-                << std::endl;*/
-
       // interwindow links
       GenerateMatrixWindowIntraLinks(window_matrix_all_contig);
       std::cerr << "[tarantula::Construct] Generate matrix window intra links" << std::endl;
@@ -179,51 +172,6 @@ void Graph::Construct(
   std::vector<std::vector<std::uint32_t>> matrix(num_chromosomes, std::vector<std::uint32_t>(num_chromosomes, 0));
   std::unordered_map<std::uint32_t, Node>::iterator it;
   GenerateMatrix(matrix);
-
-  // write matrix of interchromosome links to csv
-  /*
-  myfile.open("matrix.csv");
-
-  std::string output = ",";
-  for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
-    output += std::to_string(i) + ",";
-  }
-  output += "Total, 0011 number, 0110 number\n";
-  myfile << output;
-
-  for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
-    output ="";
-    output += std::to_string(i) + ",";
-    for (int r = 0; r < static_cast<int>(matrix[i].size()); r++) {
-      output += std::to_string(matrix[i][r]) + ",";
-    }
-    it = contigs.find(i);
-    if (it != contigs.end()) {
-      output += std::to_string(it->second.interchromosome_links)+"," +
-                std::to_string(it->second.link_0011)+","+
-                std::to_string(it->second.link_0110)+"\n";
-    }
-    myfile << output;
-  }
-  myfile.close();*/
-
-  
-  // contig window links text file
-  /*
-  int sum = 0;
-  myfile.open("contig_window_links.txt");
-  for (auto contig : contigs) {
-    for (auto window : contig.second.windows) {
-      myfile <<  "contig = " << contig.first << " , window = " << window.id << ", links = " << window.interchromosome_links << "\n";
-      sum+=window.interchromosome_links;
-    }
-  }
-  myfile.close();*/
-
-  // window matrix csv
-  
-  //GenerateMatrixWindow(window_id_map, window_matrix_all_contig);
-  //std::cerr << "[tarantula::Construct] Generation of window matrix done" << std::endl;
 
   for (const auto& window_matrix : window_matrix_all_contig) {
     string file_name = "window_matrix_contig_" + std::to_string(window_matrix.first) + ".csv";
@@ -276,486 +224,216 @@ void Graph::Construct(
     }
     myfile.close();
   }
-
+  } else {
+    // skip stage
+    CreateGraph(targets);
+    window_id_map = GenerateMapWindowID();
+    std:cerr << "Number of contigs " << window_id_map.size() << std::endl;
+    numRuns = 1;
+  }
   // directed force
   //window_id_map.size()
+  //std::cerr << "whats happeniing here? " << std::endl;
+  std::vector<std::future<void>> void_futures;
   for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
-    std::string input = "contig_" + std::to_string(i) + ".txt";
-    std::string output = "contig_" + std::to_string(i) + "_output.txt";
-    std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
-    std::vector<std::vector<double>> edges;
-    std::unordered_map<std::string, int> map_table;
-    std::unordered_map<int, std::shared_ptr<directedforce::Vertex>> vertices;
-    std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter1;
-    std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter2;
+      // be sure to used std::ref() or std::cref() for references
+    void_futures.emplace_back(thread_pool_->Submit([&] (
+      std::vector<int>& window_id_map, 
+      int contig_id, 
+      int numRuns) -> void {
+      std::ofstream myfile;
+      std::string input = "contig_" + std::to_string(contig_id) + ".txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_output.txt";
+      std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
+      std::vector<std::vector<double>> edges;
+      std::unordered_map<std::string, int> map_table;
+      std::unordered_map<int, std::shared_ptr<directedforce::Vertex>> vertices;
+      std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter1;
+      std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter2;
 
-    directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
+      directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
 
-    // if no split into 5kbp for 20kbp
-    /*
-    // for raven, split only contig 1 & 15
-    if (i == 1 || i == 15) {
+      // if no split into 5kbp for 20kbp
+      if (contig_id == 1 || contig_id == 15) {
 
-    } else {
-      continue;
-    }*/
-    
-    if (vertices_unmaped.size() == 0)
-      continue;
-    // map first
-    int max_index = 0;
-    int min_index = INT_MAX;
-    std::cerr << "directed force map table size: " << map_table.size() << endl;
-    for (auto& index : map_table) { 
-      vertices.insert({std::stoi(index.first),vertices_unmaped[index.second]});
-      if (std::stoi(index.first) > max_index) {
-        max_index = std::stoi(index.first);
-      }
-      if (std::stoi(index.first) < min_index) {
-        min_index = std::stoi(index.first);
-      }
-    }
-    std::cerr << "min index: " << min_index << std::endl;
-    std::cerr << "max index: " << max_index << std::endl; 
-    std::vector<std::tuple<double, int, int>> conseq_edges_length;
-    std::vector<std::tuple<double, int, int>> long_edges;
-    for (int r = min_index; r < max_index; r++) {
-      iter1 = vertices.find(r);
-      iter2 = vertices.find(r+1);
-      if (iter1 != vertices.end() && iter2 != vertices.end()) {
-        // edge exist
-        // calculate edge length
-        directedforce::MathVector edge = iter1->second->pos - iter2->second->pos;
-        conseq_edges_length.emplace_back(std::make_tuple(edge.abs(), r, r+1));
-      }
-    }
-
-    std::cerr << "crash where?" << std::endl;
-    
-    std::sort(conseq_edges_length.begin(), conseq_edges_length.end(),
-    [] (const std::tuple<double, int, int>& e1,
-        const std::tuple<double, int, int>& e2) -> bool {
-      return get<0>(e1) < get<0>(e2);
-    });
-
-    std::cerr << "sorting?" << std::endl;
-    int num_conseq_edges = conseq_edges_length.size();
-    std::cerr << "size: " << num_conseq_edges << std::endl;
-    double median_conseq_edges;
-    // calculate median
-    if (num_conseq_edges % 2 == 0) {
-      // even
-      std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
-      median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]) +
-                            get<0>(conseq_edges_length[num_conseq_edges/2 - 1]);
-      median_conseq_edges /= 2;
-    } else {
-      std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
-      median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]);
-    }
-    std::cerr << "calculate median" << std::endl;
-    // contig id, pair: begin. end
-    std::unordered_map<int, std::pair<int, int>> contigs_id;
-    std::unordered_map<int, std::pair<int, int>>::iterator contigs_itr;
-    // if edge > 2x median
-
-    std::unordered_map<int, int> window_id;
-    std::unordered_map<int, int>::iterator window_id_iter;
-    // change to if edge > 2x median --> window id
-
-    for (auto& conseq_edge : conseq_edges_length) {
-      if (get<0>(conseq_edge) >= median_conseq_edges*3) {
-        long_edges.emplace_back(conseq_edge);
-        window_id_iter = window_id.find(get<1>(conseq_edge));
-        if (window_id_iter == window_id.end()) {
-          window_id.insert({get<1>(conseq_edge), 0});
-        }
-        window_id_iter = window_id.find(get<2>(conseq_edge));
-        if (window_id_iter == window_id.end()) {
-          window_id.insert({get<2>(conseq_edge), 0});
-        }
-        
-        /*
-        // first node
-        contigs_itr = contigs_id.find(get<1>(conseq_edge));
-        if (contigs_itr == contigs_id.end()) {
-          int begin1=0, end1=0;
-          FindContigID(get<1>(conseq_edge), window_id_map,&begin1,&end1);
-          contigs_id.insert({get<1>(conseq_edge), std::make_pair(begin1, end1)});
-        } else {
-          int begin1=0, end1=0;
-          FindContigID(get<1>(conseq_edge), window_id_map,&begin1,&end1);
-          if (contigs_itr->second.first > begin1)
-            contigs_itr->second.first = begin1;
-          if (contigs_itr->second.second < end)
-            contigs_itr->second.second = end;
-        }
-        // second node
-        contigs_itr = contigs_id.find(get<2>(conseq_edge));
-        if (contigs_itr == contigs_id.end()) {
-          int begin2=0, end2=0;
-          FindContigID(get<1>(conseq_edge), window_id_map, &begin2, &end2);
-          contigs_id.insert({get<1>(conseq_edge), std::make_pair(begin2, end2)});
-        } else {
-          int begin2=0, end2=0;
-          FindContigID(get<1>(conseq_edge), window_id_map, &begin2, &end);
-          if (contigs_itr->second.first > begin2)
-            contigs_itr->second.first = begin2;
-          if (contigs_itr->second.second < end)
-            contigs_itr->second.second = end;
-        }*/
-      }
-    }
-    std::cerr << "get long edge" << std::endl;
-
-    if (long_edges.size() == 0) {
-      std::cerr << "contig " << i  << " have no long edges" << std::endl;
-      continue;
-    }
-
-    /*
-    std::unordered_map<std::string, std::vector<biosoup::Overlap>> long_edges_overlap;
-    // load the overlaps & take the overlaps for that specific 2 windows and slice it into 1kbp
-    for (const auto& read_pairs: all_read_pairs) {
-      for (const auto& overlaps : read_pairs) {
-        for (const auto& overlap : overlaps.second) {
-          contigs_itr = contigs_id.find(overlap.lhs_id);
-          if (contigs_itr != contigs_id.end()) {
-            if (overlap.rhs_begin > contigs_itr->second.first && overlap.rhs_begin < contigs_itr->second.second) {
-              long_edges_overlap.insert(overlaps);
-              break;
-            }
-          }
-        }
-      }
-    }*/
-
-    // ^ or dont even nid to filter, just clear the matrix to make another matrix
-
-    std::cerr << "crash where?" << std::endl;
-
-    // map table
-    
-    // matrix index, split = true
-    std::unordered_map<int, pair<int, bool>> window_split_map;
-    std::unordered_map<int, pair<int, bool>>::iterator window_split_map_iter;
-
-    int num_windows_this_contig = window_id_map[i+1] - window_id_map[i];
-    int start = window_id_map[i];
-    int end = window_id_map[i+1];
-    int starting_node_number = 0;
-    int window_id_in_each_contig = 0;
-    for (int r = start; r < end; r++) {
-      window_id_iter = window_id.find(r);
-      if (window_id_iter != window_id.end()) {
-        window_split_map.insert({window_id_in_each_contig, {starting_node_number, true}});
-        starting_node_number += 5;
       } else {
-        window_split_map.insert({window_id_in_each_contig, {starting_node_number, false}});
-        starting_node_number += 1;
+        return;
       }
-      window_id_in_each_contig++;
-    }
-
-    std::cerr << "matrix size: " << starting_node_number << std::endl;
-
-
-    // map table, only for that 1 contig | format: all the contig, then split contigs
-    /*
-    int starting_node_number = window_id_map[i+1] - window_id_map[i];
-    std::cerr << "Starting node number: " << starting_node_number << std::endl;
-    std::cerr << "Number of windows: " << window_id.size() << std::endl;
-    std::unordered_map<int, int> window_split_map;
-    std::unordered_map<int, int>::iterator window_split_map_iter;
-
-    for (auto& window : window_id) {
-      window_split_map_iter = window_split_map.find(window.first);
-      if (window_split_map_iter == window_split_map.end()) {
-        window_split_map.insert({window.first, starting_node_number});
-        starting_node_number += 25;
+      
+      if (vertices_unmaped.size() == 0)
+        return;
+      // map first
+      int max_index = 0;
+      int min_index = INT_MAX;
+      //std::cerr << "directed force map table size: " << map_table.size() << endl;
+      for (auto& index : map_table) { 
+        vertices.insert({std::stoi(index.first),vertices_unmaped[index.second]});
+        if (std::stoi(index.first) > max_index) {
+          max_index = std::stoi(index.first);
+        }
+        if (std::stoi(index.first) < min_index) {
+          min_index = std::stoi(index.first);
+        }
       }
-    }*/
-
-    /*
-    // map table
-
-    int starting_node_number = window_matrix.size();
-    std::cerr << "number of nodes before splitting: " << starting_node_number << std::endl;
-    // window, node number
-    std::unordered_map<int, int> window_split_map;
-    std::unordered_map<int, int>::iterator window_split_map_iter;
-
-    for (auto& window : window_id) {
-      window_split_map_iter = window_split_map.find(window.first);
-      if (window_split_map_iter == window_split_map.end()) {
-        window_split_map.insert({window.first, starting_node_number});
-        starting_node_number += 25;
-      }
-    }*/
-
-    // print window split map
-    for (auto& window_split : window_split_map) {
-      std::cerr << "window: " << window_split.first << ", map: " << window_split.second.first << " ," << window_split.second.second <<  std::endl;
-    }
-
-    std::cerr << "crash where?" << std::endl;
-
-    std::cerr << "number of windows that require splitting: " << window_id.size() << std::endl;
-    //std::cerr << "original matrix size: " << window_matrix.size() << std::endl; 
-    std::cerr << "current matrix size aft splitting: " << starting_node_number << std::endl; 
-    std::vector<std::vector<std::uint32_t>> window_split_matrix(starting_node_number, std::vector<std::uint32_t>(starting_node_number, 0));
-    for (int r = 0; r < numRuns; r++) {
-      Load(r);
-      std::cerr << "load sucess? " << intra_links.size() << std::endl;
-      GenerateMatrixAftSplitWindow(i, window_split_map, window_split_matrix);
-    }
-
-    std::cerr << "after generate matrix, split matrix size: " << window_split_matrix.size() << std::endl;
-
-      // window matrix csv
-    
-    myfile.open("contig_" + std::to_string(i) + "_window_matrix.csv");
-    
-    output = ",";
-    for (int i = 0; i < static_cast<int>(window_split_matrix.size()); i++) {
-      output += std::to_string(i) + ",";
-    }
-    output += "Total\n";
-    myfile << output;
-
-    for (int i = 0; i < static_cast<int>(window_split_matrix.size()); i++) {
-      auto sum = 0;
-      output ="";
-      output += std::to_string(i);
-      for (int r = 0; r < static_cast<int>(window_split_matrix[i].size()); r++) {
-        output += "," + std::to_string(window_split_matrix[i][r]);
-        sum += window_split_matrix[i][r];
-      }
-      output += "," + std::to_string(sum)+"\n";
-      myfile << output;
-    }
-    myfile.close();
-    /*
-    for (auto& long_edge : long_edges) {
-      int window_1 = get<1>(long_edge);
-      window_split_map_iter = window_split_map.find(window_1);
-      if (window_split_map_iter == window_split_map.end()) {
-        window_split_map.insert({window_1, starting_node_number});
-        starting_node_number += 10;
+      //std::cerr << "min index: " << min_index << std::endl;
+      //std::cerr << "max index: " << max_index << std::endl; 
+      std::vector<std::tuple<double, int, int>> conseq_edges_length;
+      std::vector<std::tuple<double, int, int>> long_edges;
+      for (int r = min_index; r < max_index; r++) {
+        iter1 = vertices.find(r);
+        iter2 = vertices.find(r+1);
+        if (iter1 != vertices.end() && iter2 != vertices.end()) {
+          // edge exist
+          // calculate edge length
+          directedforce::MathVector edge = iter1->second->pos - iter2->second->pos;
+          conseq_edges_length.emplace_back(std::make_tuple(edge.abs(), r, r+1));
+        }
       }
 
-      int window_2 = get<2>(long_edge);
-      window_split_map_iter = window_split_map.find(window_2);
-      if (window_split_map_iter == window_split_map.end()) {
-        window_split_map.insert({window_2, starting_node_number});
-        starting_node_number += 10;
+      //std::cerr << "crash where?" << std::endl;
+      
+      std::sort(conseq_edges_length.begin(), conseq_edges_length.end(),
+      [] (const std::tuple<double, int, int>& e1,
+          const std::tuple<double, int, int>& e2) -> bool {
+        return get<0>(e1) < get<0>(e2);
+      });
+
+      //std::cerr << "sorting?" << std::endl;
+      int num_conseq_edges = conseq_edges_length.size();
+      //std::cerr << "size: " << num_conseq_edges << std::endl;
+      double median_conseq_edges;
+      // calculate median
+      if (num_conseq_edges % 2 == 0) {
+        // even
+        //std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
+        median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]) +
+                              get<0>(conseq_edges_length[num_conseq_edges/2 - 1]);
+        median_conseq_edges /= 2;
+      } else {
+        //std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
+        median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]);
       }
-    }*/
+      //std::cerr << "calculate median" << std::endl;
+      // contig id, pair: begin. end
+      std::unordered_map<int, std::pair<int, int>> contigs_id;
+      std::unordered_map<int, std::pair<int, int>>::iterator contigs_itr;
+      // if edge > 2x median
 
-    // (?) remove the row or column that window is split into 25kbp?
+      std::unordered_map<int, int> window_id;
+      std::unordered_map<int, int>::iterator window_id_iter;
+      // change to if edge > 2x median --> window id
 
-    // generate 1k
-    
-
-    // split into window into 1kbp
-    std::cerr << "csv done" << std::endl;
-
-    /*
-    std::vector<std::shared_ptr<directedforce::Vertex>> vertices_aft_split;
-    std::vector<std::vector<double>> edges_aft_split;
-    std::unordered_map<std::string, int> map_table_aft_split;*/
-    
-    myfile.open("contig_" + std::to_string(i) + "_split.txt");
-    for (int r = 0; r < window_split_matrix.size(); r++) {
-      for (int x = 0; x < r; x++) {
-        if (window_split_matrix[r][x] != 0)
-          myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
-      } 
-    }
-    myfile.close();
-
-    /*
-    myfile.open("contig_" + std::to_string(i) + "_split.txt");
-    start = window_id_map[i];
-    if (i+1 == window_id_map.size()) {
-      end = window_matrix.size();
-    } else {
-      end = window_id_map[i+1];
-    }
-    for (int r = start; r < end; r++) {
-      for (int x = start; x < r; x++) {
-        if (window_split_matrix[r][x] != 0)
-          myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
-      }
-    }
-    for (int r = window_matrix.size(); r < window_split_matrix.size(); r++) {
-      for (int x = window_matrix.size(); x < r; x++) {
-        if (window_split_matrix[r][x] != 0)
-          myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
-      }
-    }
-    myfile.close();*/
-
-    std::cerr << "txt file done" << std::endl;
-  
-    directedforce::GenerateGraphFromDirectedForceAlgorithm("contig_" + std::to_string(i) + "_split.txt", "contig_" + std::to_string(i) + "_split_output.txt");
-
-
-  }
-
-  // load overlaps
-  /*
-  Load(numRuns);
-  std::cerr << "vector size: " << all_read_pairs.size() << std::endl;
-  std::cerr << "test: " << all_read_pairs[0].size() << std::endl;*/ 
-
-  // graph -- 1 contig == 1 node
-  /*
-  // find component & only draw components that have >= 3 nodes
-  std::vector<std::vector<std::uint32_t>> components = GetComponents(matrix);
-  for (int it = 0; it < static_cast<int>(components.size()); it++) {
-    if (components[it].size() <= 2)
-      continue;
-    myfile.open("component_" + std::to_string(it) + ".txt");
-    for (int i = 0; i < static_cast<int>(components[it].size()); i++) {
-      for (int r = 0; r < i; r++) {
-        if (matrix[components[it][i]][components[it][r]] != 0)
-          myfile << i << "--" << r << "," << matrix[components[it][i]][components[it][r]] << "\n";
-      }
-    }
-    myfile.close();
-  }
-
-  // create text file to visualise graph
-  myfile.open("graph_max.txt");
-  myfile2.open("graph_inter_max.txt");
-  myfile3.open("graph.txt");
-  std::uint32_t max_contig = MaxInMatrix(matrix);
-  std::uint32_t max_contig_inter = MaxInter(matrix);
-  for (int i = 0; i < static_cast<int>(matrix.size()); i++) {
-    for (int r = 0; r < i; r++) {
-      if (matrix[i][r] == 0)
-        continue;
-      double weight = (double) matrix[i][r]/ (double) max_contig;
-      if (weight > 0.0001)
-        myfile << i << "--" << r << "," << weight << "\n";
-      double weight_inter = (double) matrix[i][r]/ (double) max_contig_inter;
-      if (weight_inter > 0.0001)
-        myfile2 << i << "--" << r << "," << weight_inter << "\n";
-      myfile3 << i << "--" << r << "," << matrix[i][r] << "\n";
-    }
-  }
-  myfile.close();
-  myfile2.close();
-  myfile3.close();*/
-
-  // find component & only draw components that have >= 3 nodes (BY WINDOW)  -- error in get components, create new method for it
-  /*
-  for (int it = 0; it < static_cast<int>(components.size()); it++) {
-    if (components[it].size() <= 2)
-      continue;
-    myfile.open("window_component_" + std::to_string(it) + ".txt");
-
-    // assume contig id is from 0 - contigs.size()-1
-
-    int window_in_contig = 0;
-    int counter = 1;
-    for (int i = 0; i < window_matrix.size(); i++) {
-      if (i >= window_id_map[counter]) {
-        window_in_contig++;
-        counter++;
-      }
-      myfile << i << " " << window_in_contig << "\n";
-    }
-    myfile << "%\n";
-    for (int i = 0; i < static_cast<int>(components[it].size()); i++) {
-      for (int r = 0; r < i; r++) {
-        int contig_id_1 = components[it][i];
-        int contig_id_2 = components[it][r];
-        for (int y = window_id_map[contig_id_1]; y < window_id_map[contig_id_1+1]; y++) {
-          for (int x = window_id_map[contig_id_2]; x < window_id_map[contig_id_2+1]; x++) {
-            if (window_matrix[y][x]!=0)
-              myfile << i << "--" << r << "," << window_matrix[y][x] << "\n";
+      for (auto& conseq_edge : conseq_edges_length) {
+        if (get<0>(conseq_edge) >= median_conseq_edges*3) {
+          long_edges.emplace_back(conseq_edge);
+          window_id_iter = window_id.find(get<1>(conseq_edge));
+          if (window_id_iter == window_id.end()) {
+            window_id.insert({get<1>(conseq_edge), 0});
+          }
+          window_id_iter = window_id.find(get<2>(conseq_edge));
+          if (window_id_iter == window_id.end()) {
+            window_id.insert({get<2>(conseq_edge), 0});
           }
         }
       }
-    }
-    // deal with all the links between windows in each contig
-    for (int i = 0; i < static_cast<int>(components[it].size()); i++) {
-      int contig_id = components[it][i];
-      for (int r = window_id_map[contig_id]; r < window_id_map[contig_id+1]-1; r++){
-        if (window_matrix[r][r+1]!=0)
-          myfile << i << "--" << r << "," << window_matrix[r][r+1] << "\n";
-      }
-    }
-    myfile.close();
-  }*/
+     // std::cerr << "get long edge" << std::endl;
 
-// window graph -- inter and intra links
-/*
-  int window_in_contig = 0;
-  int counter = 1;
-  myfile.open("window_graph_max.txt");
-  myfile2.open("window_graph_max_inter.txt");
-  myfile3.open("window_graph.txt");
-  for (int i = 0; i < window_matrix.size(); i++) {
-    if (i >= window_id_map[counter]) {
-      window_in_contig++;
-      counter++;
-    }
-    myfile << i << " " << window_in_contig << "\n";
-    myfile2 << i << " " << window_in_contig << "\n";
-    myfile3 << i << " " << window_in_contig << "\n";
+      if (long_edges.size() == 0) {
+        std::cerr << "contig " << contig_id  << " have no long edges" << std::endl;
+        return;
+      }
+
+
+      //std::cerr << "crash where?" << std::endl;
+
+      std::unordered_map<int, pair<int, bool>> window_split_map;
+      std::unordered_map<int, pair<int, bool>>::iterator window_split_map_iter;
+
+      int num_windows_this_contig = window_id_map[contig_id+1] - window_id_map[contig_id];
+      int start = window_id_map[contig_id];
+      int end = window_id_map[contig_id+1];
+      int starting_node_number = 0;
+      int window_id_in_each_contig = 0;
+      for (int r = start; r < end; r++) {
+        window_id_iter = window_id.find(r);
+        if (window_id_iter != window_id.end()) {
+          window_split_map.insert({window_id_in_each_contig, {starting_node_number, true}});
+          starting_node_number += 5;
+        } else {
+          window_split_map.insert({window_id_in_each_contig, {starting_node_number, false}});
+          starting_node_number += 1;
+        }
+        window_id_in_each_contig++;
+      }
+
+      //std::cerr << "matrix size: " << starting_node_number << std::endl;
+
+      // print window split map
+      for (auto& window_split : window_split_map) {
+        //std::cerr << "window: " << window_split.first << ", map: " << window_split.second.first << " ," << window_split.second.second <<  std::endl;
+      }
+
+      //std::cerr << "crash where?" << std::endl;
+
+      //std::cerr << "number of windows that require splitting: " << window_id.size() << std::endl;
+      //std::cerr << "original matrix size: " << window_matrix.size() << std::endl; 
+      //std::cerr << "current matrix size aft splitting: " << starting_node_number << std::endl; 
+      std::vector<std::vector<std::uint32_t>> window_split_matrix(starting_node_number, std::vector<std::uint32_t>(starting_node_number, 0));
+      for (int r = 0; r < numRuns; r++) {
+        Load(r);
+        //std::cerr << "load sucess? " << intra_links.size() << std::endl;
+        GenerateMatrixAftSplitWindow(contig_id, window_split_map, window_split_matrix);
+      }
+
+      //std::cerr << "after generate matrix, split matrix size: " << window_split_matrix.size() << std::endl;
+
+        // window matrix csv
+      
+      myfile.open("contig_" + std::to_string(contig_id) + "_window_matrix.csv");
+      
+      output = ",";
+      for (int i = 0; i < static_cast<int>(window_split_matrix.size()); i++) {
+        output += std::to_string(i) + ",";
+      }
+      output += "Total\n";
+      myfile << output;
+
+      for (int i = 0; i < static_cast<int>(window_split_matrix.size()); i++) {
+        auto sum = 0;
+        output ="";
+        output += std::to_string(i);
+        for (int r = 0; r < static_cast<int>(window_split_matrix[i].size()); r++) {
+          output += "," + std::to_string(window_split_matrix[i][r]);
+          sum += window_split_matrix[i][r];
+        }
+        output += "," + std::to_string(sum)+"\n";
+        myfile << output;
+      }
+      myfile.close();
+
+      // split into window into 1kbp
+     // std::cerr << "csv done" << std::endl;
+
+      myfile.open("contig_" + std::to_string(contig_id) + "_split.txt");
+      for (int r = 0; r < window_split_matrix.size(); r++) {
+        for (int x = 0; x < r; x++) {
+          if (window_split_matrix[r][x] != 0)
+            myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
+        } 
+      }
+      myfile.close();
+
+      //std::cerr << "txt file done" << std::endl;
+
+      directedforce::GenerateGraphFromDirectedForceAlgorithm("contig_" + std::to_string(contig_id) + "_split.txt", "contig_" + std::to_string(contig_id) + "_split_output.txt");
+    }, std::ref(window_id_map), i, numRuns));
   }
-  myfile << "%\n";
-  myfile2 << "%\n";
-  myfile3 << "%\n";
-
-  // scale inter and intra the same way
-  
-  std::uint32_t max = MaxInMatrix(window_matrix);
-  std::uint32_t max_inter = MaxInter(window_matrix);
-  std::cerr << "max: " << max << std::endl;
-  for (int i = 0; i < static_cast<int>(window_matrix.size()); i++) {
-    for (int r = 0; r < i; r++) {
-      if (window_matrix[i][r] == 0)
-        continue;
-      double weight = (double) window_matrix[i][r]/ (double) max;
-      if (weight > 0.0001 ) {
-        myfile << i << "--" << r << "," << weight << "\n";
-      }
-      double weight_inter = (double) window_matrix[i][r]/ (double) max_inter;
-      if (weight > 0.0001 ) {
-        myfile2 << i << "--" << r << "," << weight << "\n";
-      }
-      myfile3 << i << "--" << r << "," << window_matrix[i][r] << "\n";
-    }
+  for (const auto& it : void_futures) {
+    it.wait();
   }
-
-  myfile.close();
-  myfile2.close();
-  myfile3.close();*/
-
-  // get pairs are discarded because there is multiple overlap
-  /*
-  std::ofstream myfile;
-  myfile.open ("log.txt");
-  for (const auto& rp : multiple_overlap_read_pairs){
-    myfile << "read pair: " << rp.first
-           << " id: " << rp.second[0][0].lhs_id << "\n";
-    
-    for (const auto& overlaps : rp.second){
-      for (const auto& overlap : overlaps){
-        myfile << " rhs id: " << overlap.rhs_id
-               << " begin: " << overlap.rhs_begin
-               << " end: " << overlap.rhs_end << "\n"; 
-      }
-    }
-  
-  }
-  myfile.close();*/
   return;
 }
+
 
 bool Graph::isIntraLink(Link &link) {
   if (link.rhs_id == link.lhs_id) 
