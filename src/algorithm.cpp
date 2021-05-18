@@ -529,8 +529,11 @@ void GenerateGraphFromDirectedForceAlgorithm(
   //std::cerr << "\n[GraphVisualisation] " << input << std::endl;
   //std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
 
-  width = vertices.size();
-  length = vertices.size();
+  if (vertices.size() < 1000) {
+    width = vertices.size();
+    length = vertices.size();
+  }
+  
   map_table = parseTxtFile(input, vertices, edges, output, color);
   if (vertices.size() == 0) {
     return;
@@ -577,8 +580,11 @@ void GenerateGraphFromDirectedForceAlgorithm(
     return;
   }
   
-  width = vertices.size();
-  length = vertices.size();
+  if (vertices.size() < 1000) {
+    width = vertices.size();
+    length = vertices.size();
+  }
+  
 
   initVerticesPosition(vertices, width, length, random); 
 

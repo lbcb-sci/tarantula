@@ -28,9 +28,9 @@ void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
   std::vector<int> window_id_map;
   int numRuns = 0;
-  std::ofstream myfile;
+  std::ofstream myfile, myfile2;
  
-  if (false) {
+  // if (false) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
   double frequency = 0.0001;
@@ -77,7 +77,9 @@ void Graph::Construct(
             << contigs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
-  // filter pair + create pile-o-gram + less than 4GB
+
+
+  // filter pair + less than 4GB
   timer.Start();
   std::size_t bytes = 0;
   window_id_map = GenerateMapWindowID();
@@ -121,7 +123,7 @@ void Graph::Construct(
         for (auto& result : result_vector) {
           try {
             if (intra_links.capacity() == intra_links.size()) 
-              intra_links.reserve(intra_links.capacity() * 1.1);
+              intra_links.reserve(intra_links.capacity() * 1.5);
           }
           catch (...) {
             std::cerr << "RESERVATION OF MEMORY FAILED\n";
@@ -214,23 +216,30 @@ void Graph::Construct(
 
   int start, end;
 
+  std::unordered_map<std::uint32_t, Node>::iterator contigs_iter;
   for (const auto& window_matrix : window_matrix_all_contig) {
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
+    myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
+    contigs_iter = contigs.find(window_matrix.first);
     for (int r = 0; r < window_matrix.second.size(); r++) {
       for (int x = 0; x < r; x++) {
-        if (window_matrix.second[r][x] != 0)
+        if (window_matrix.second[r][x] != 0) {
+          int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
+          myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
+        }       
       }
     }
     myfile.close();
+    myfile2.close();
   }
-  } else {
+  /*} else {
     // skip stage
     CreateGraph(targets);
     window_id_map = GenerateMapWindowID();
     std:cerr << "Number of contigs " << window_id_map.size() << std::endl;
     numRuns = 1;
-  }
+  }*/
   // directed force
   //window_id_map.size()
   //std::cerr << "whats happeniing here? " << std::endl;
@@ -242,8 +251,8 @@ void Graph::Construct(
       int contig_id, 
       int numRuns) -> void {
       std::ofstream myfile;
-      std::string input = "contig_" + std::to_string(contig_id) + ".txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_output.txt";
+      std::string input = "contig_" + std::to_string(contig_id) + "_scaled.txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, int> map_table;
@@ -253,12 +262,8 @@ void Graph::Construct(
 
       directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
 
-      // if no split into 5kbp for 20kbp
-      if (contig_id == 1 || contig_id == 15) {
-
-      } else {
-        return;
-      }
+      // no split
+      return;
       
       if (vertices_unmaped.size() == 0)
         return;
@@ -440,6 +445,66 @@ void Graph::Construct(
   return;
 }
 
+/*
+uint32_t Graph::CalculateRestrictionSites(std::unique_ptr<biosoup::NucleicAcid> const& target) {
+  std::string contig_seq = target->InflateData();
+  uint32_t gatc = KMPSearch("GATC", contig_seq);
+  uint32_t gantc = KMPSearch("GANTC", contig_seq);
+  return gantc + gatc;
+}*/
+
+std::vector<uint32_t> Graph::CalculateRestrictionSites(std::unique_ptr<biosoup::NucleicAcid> const& target, int window_size) {
+  std::vector<uint32_t> restriction_sites;
+  std::string contig_seq = target->InflateData();
+  std::cerr << "contig seq size: " << contig_seq.size() << std::endl;
+  int size = ceil(contig_seq.size()/window_size);
+  int start = 0, end = window_size;
+  uint32_t gatc, gantc;
+  while (start < contig_seq.size()) {
+    if (end > contig_seq.size()) {
+      end = contig_seq.size();
+    }
+    gatc = KMPSearch("GATC", contig_seq.substr(start, end));
+    gantc = KMPSearch("GANTC", contig_seq.substr(start, end));
+    restriction_sites.push_back(gantc + gatc);
+    start += window_size;
+    end += window_size;
+    //std::cerr << "start: " << start << " ,end: " << end << std::endl;
+  }
+  
+  return restriction_sites;
+}
+
+uint32_t Graph::KMPSearch(std::string pat, std::string txt)
+{
+  int M = pat.size();
+  int N = txt.size();
+  uint32_t count = 0;
+  // Preprocess the pattern (calculate lps[] array)
+  int i = 0; // index for txt[]
+  int j = 0; // index for pat[]
+  while (i < N) {
+    if (pat[j] == txt[i]) {
+      j++;
+      i++;
+    }
+    if (j == M) {
+      count++;
+      j = 0;
+    }
+    // mismatch after j matches
+    else if (i < N && pat[j] != txt[i]) {
+        // Do not match lps[0..lps[j-1]] characters,
+        // they will match anyway
+      if (j != 0)
+          j = 0;
+      else
+          i = i + 1;
+    }
+  }
+  return count;
+}
+
 
 bool Graph::isIntraLink(Link &link) {
   if (link.rhs_id == link.lhs_id) 
@@ -463,7 +528,14 @@ int Graph::FindContigID(int window_id, std::vector<int>& window_id_map, int *beg
 void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   for (auto const& target : targets) {
-    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size));
+    std::vector<uint32_t> restriction_sites = CalculateRestrictionSites(target, window_size);
+    //std::cerr << "contig : " << target->id << std::endl;
+    /*
+    for (auto const& rs : restriction_sites) {
+      std::cerr << rs << " ";
+    }
+    std::cerr << "\n";*/
+    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites));    
   }
 }
 
