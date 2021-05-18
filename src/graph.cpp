@@ -30,7 +30,7 @@ void Graph::Construct(
   int numRuns = 0;
   std::ofstream myfile;
  
-  if (true) {
+  if (false) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
   double frequency = 0.0001;
@@ -324,7 +324,7 @@ void Graph::Construct(
       // change to if edge > 2x median --> window id
 
       for (auto& conseq_edge : conseq_edges_length) {
-        if (get<0>(conseq_edge) >= median_conseq_edges*3) {
+        if (get<0>(conseq_edge) >= median_conseq_edges) {
           long_edges.emplace_back(conseq_edge);
           window_id_iter = window_id.find(get<1>(conseq_edge));
           if (window_id_iter == window_id.end()) {
@@ -336,6 +336,11 @@ void Graph::Construct(
           }
         }
       }
+
+      for (auto& w : window_id) {
+        //std::cerr << w.first << ", " << w.second << std::endl;
+      }
+
      // std::cerr << "get long edge" << std::endl;
 
       if (long_edges.size() == 0) {
@@ -350,8 +355,9 @@ void Graph::Construct(
       std::unordered_map<int, pair<int, bool>>::iterator window_split_map_iter;
 
       int num_windows_this_contig = window_id_map[contig_id+1] - window_id_map[contig_id];
-      int start = window_id_map[contig_id];
-      int end = window_id_map[contig_id+1];
+      int start = 0;
+      int end = window_id_map[contig_id+1] - window_id_map[contig_id];
+      //std::cerr << "start: " << start <<" , end: " << end << std::endl; 
       int starting_node_number = 0;
       int window_id_in_each_contig = 0;
       for (int r = start; r < end; r++) {
