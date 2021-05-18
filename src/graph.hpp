@@ -75,15 +75,14 @@ struct Node{
   uint32_t link_0110;
   std::vector<uint32_t> restriction_sites;
   std::vector<Window> windows;
-  Node(uint32_t id, uint32_t len, int window_size, std::vector<uint32_t>& restriction_sites)
+  Node(uint32_t id, uint32_t len, int window_size)
       : id(id),
         len(len),
         pileogram(id, len),
         interchromosome_links(0), 
         intrachromosome_links(0),
         link_0011(0),
-        link_0110(0),
-        restriction_sites(restriction_sites) {
+        link_0110(0) {
           int size = ceil(len/window_size);
           for (int i = 0; i <= size; i++) {
             Window w(i);
@@ -132,7 +131,8 @@ class Graph {
   void serialize(Archive & archive) {
     archive(CEREAL_NVP(intra_links), CEREAL_NVP(inter_links)); // serialize things by passing them to the archive
   }
-
+  
+  void CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets, int window_size);
   std::vector<uint32_t> CalculateRestrictionSites(std::unique_ptr<biosoup::NucleicAcid> const& target, int window_size);
   uint32_t KMPSearch(std::string pat, std::string txt);
   bool isIntraLink(Link &link);

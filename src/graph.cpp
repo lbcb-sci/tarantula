@@ -214,6 +214,8 @@ void Graph::Construct(
             << " Total Interchromosome links = " << sum_interchromosome_links/2
             << std::endl;
 
+  CalculateAllRestrictionSite(targets, window_size);
+
   int start, end;
 
   std::unordered_map<std::uint32_t, Node>::iterator contigs_iter;
@@ -527,10 +529,23 @@ int Graph::FindContigID(int window_id, std::vector<int>& window_id_map, int *beg
 // technically this also can be multi-thread - just remove the for loop
 void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
-
-  std::vector<std::future<void>> futures;
   for (auto const& target : targets) {
     // be sure to used std::ref() or std::cref() for references
+    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size)); 
+  }
+  
+
+  /*
+  for (auto const& target : targets) {
+    std::vector<uint32_t> restriction_sites = CalculateRestrictionSites(target, window_size);
+    //std::cerr << "contig : " << target->id << std::endl;
+    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites));    
+  }*/
+}
+
+void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets, int window_size) {
+  std::vector<std::future<void>> futures;
+  for (auto const& target : targets) {
     futures.emplace_back(thread_pool_->Submit([&](std::unique_ptr<biosoup::NucleicAcid> const& target, int window_size) 
     ->void{
       std::vector<uint32_t> restriction_sites;
@@ -550,19 +565,12 @@ void Graph::CreateGraph(
         end += window_size;
         //std::cerr << "start: " << start << " ,end: " << end << std::endl;
       }
-      contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites)); 
+      contigs.find(target->id)->second.restriction_sites = restriction_sites;
     }, std::cref(target), window_size));
   }
   for (const auto& it : futures) {
     it.wait();
   }
-
-  /*
-  for (auto const& target : targets) {
-    std::vector<uint32_t> restriction_sites = CalculateRestrictionSites(target, window_size);
-    //std::cerr << "contig : " << target->id << std::endl;
-    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites));    
-  }*/
 }
 
 void Graph::GenerateMatrix(
