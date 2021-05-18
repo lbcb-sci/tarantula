@@ -527,16 +527,42 @@ int Graph::FindContigID(int window_id, std::vector<int>& window_id_map, int *beg
 // technically this also can be multi-thread - just remove the for loop
 void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
+
+  std::vector<std::future<void>> futures;
+  for (auto const& target : targets) {
+    // be sure to used std::ref() or std::cref() for references
+    futures.emplace_back(thread_pool_->Submit([&](std::unique_ptr<biosoup::NucleicAcid> const& target, int window_size) 
+    ->void{
+      std::vector<uint32_t> restriction_sites;
+      std::string contig_seq = target->InflateData();
+      std::cerr << "contig seq size: " << contig_seq.size() << std::endl;
+      int size = ceil(contig_seq.size()/window_size);
+      int start = 0, end = window_size;
+      uint32_t gatc, gantc;
+      while (start < contig_seq.size()) {
+        if (end > contig_seq.size()) {
+          end = contig_seq.size();
+        }
+        gatc = KMPSearch("GATC", contig_seq.substr(start, end));
+        gantc = KMPSearch("GANTC", contig_seq.substr(start, end));
+        restriction_sites.push_back(gantc + gatc);
+        start += window_size;
+        end += window_size;
+        //std::cerr << "start: " << start << " ,end: " << end << std::endl;
+      }
+      contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites)); 
+    }, std::cref(target), window_size));
+  }
+  for (const auto& it : futures) {
+    it.wait();
+  }
+
+  /*
   for (auto const& target : targets) {
     std::vector<uint32_t> restriction_sites = CalculateRestrictionSites(target, window_size);
     //std::cerr << "contig : " << target->id << std::endl;
-    /*
-    for (auto const& rs : restriction_sites) {
-      std::cerr << rs << " ";
-    }
-    std::cerr << "\n";*/
     contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites));    
-  }
+  }*/
 }
 
 void Graph::GenerateMatrix(
