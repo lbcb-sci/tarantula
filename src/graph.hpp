@@ -114,7 +114,8 @@ class Graph {
 
   void Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
-    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
+    uint32_t num_threads);
   
   void PrintJson(const std::string& path) const;
 

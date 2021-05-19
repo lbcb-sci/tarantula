@@ -25,10 +25,11 @@ Graph::Graph(
 
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
-    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
+    uint32_t num_threads) {
   std::vector<int> window_id_map;
   int numRuns = 0;
-  std::ofstream myfile, myfile2;
+  std::ofstream myfile, myfile2, myfile3;
  
   // if (false) {
   // paramters for RAM
@@ -123,7 +124,7 @@ void Graph::Construct(
         for (auto& result : result_vector) {
           try {
             if (intra_links.capacity() == intra_links.size()) 
-              intra_links.reserve(intra_links.capacity() * 1.5);
+              intra_links.reserve(intra_links.capacity() * 1.1);
           }
           catch (...) {
             std::cerr << "RESERVATION OF MEMORY FAILED\n";
@@ -222,6 +223,7 @@ void Graph::Construct(
   for (const auto& window_matrix : window_matrix_all_contig) {
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
     myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
+    myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
     contigs_iter = contigs.find(window_matrix.first);
     for (int r = 0; r < window_matrix.second.size(); r++) {
       for (int x = 0; x < r; x++) {
@@ -229,11 +231,13 @@ void Graph::Construct(
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
+          myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*10000 << "\n";
         }       
       }
     }
     myfile.close();
     myfile2.close();
+    myfile3.close();
   }
   /*} else {
     // skip stage
@@ -246,6 +250,7 @@ void Graph::Construct(
   //window_id_map.size()
   //std::cerr << "whats happeniing here? " << std::endl;
   std::vector<std::future<void>> void_futures;
+  thread_pool_ = std::make_shared<thread_pool::ThreadPool>(num_threads/2);
   for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
       // be sure to used std::ref() or std::cref() for references
     void_futures.emplace_back(thread_pool_->Submit([&] (
@@ -253,8 +258,8 @@ void Graph::Construct(
       int contig_id, 
       int numRuns) -> void {
       std::ofstream myfile;
-      std::string input = "contig_" + std::to_string(contig_id) + "_scaled.txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_output.txt";
+      std::string input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, int> map_table;
@@ -560,6 +565,13 @@ void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::Nuc
         }
         gatc = KMPSearch("GATC", contig_seq.substr(start, end));
         gantc = KMPSearch("GANTC", contig_seq.substr(start, end));
+        try {
+          if (restriction_sites.capacity() == restriction_sites.size()) 
+            restriction_sites.reserve(restriction_sites.capacity() * 1.1);
+        }
+        catch (...) {
+          std::cerr << "RESERVATION OF MEMORY FAILED\n";
+        } 
         restriction_sites.push_back(gantc + gatc);
         start += window_size;
         end += window_size;

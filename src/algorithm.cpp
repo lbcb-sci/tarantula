@@ -7,6 +7,7 @@
 #include <cmath>  
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <unordered_map>
 #include <algorithm>
 #include <utility>
@@ -386,42 +387,33 @@ std::unordered_map<std::string, int> parseTxtFile(
   std::ifstream infile(path);
   std::ofstream outfile;
   double indexN1 = 0, indexN2 = 0; 
-  int iN1 = 0, iN2 = 0, end = 0, wl = 0, weight = 0; 
+  int iN1 = 0, iN2 = 0, end = 0, wl = 0;
+  double weight = 0.0;
   bool prev = false; 
   std::vector<bool> temp; 
   std::vector<Vertex> vtemp; 
   bool has_weight = false;
   bool prev_color = false;
   int new_node = 0;
-
+  std::string weight_str;
   outfile.open(outputPath);
   while (getline(infile, text)) {
     prev = false;
     
-    if (with_coloring && !prev_color) {
-      if (text[0] != '%') {
-        outfile << text + "\n";
-        continue;
-      } else if (text[0] == '%') {
-        outfile << text + "\n";
-        prev_color = true;
-        continue;
-      }
-    }
+    
     for (int i = 0; i < text.size(); i++) {
-      if (text[i] == '-' && !prev) {
-        prev = true; 
+      if (text[i] == '-' && text[i+1] == '-') {
         iN1 = i;
-      } else if (text[i] != '-' && prev) {
-        iN2 = i; 
+        iN2 = i+2;
         prev = false; 
       } else if (text[i] == ',') {
         has_weight = true;
         wl = i;
-      } else if (text[i] == '\n') {
-        end = i; 
+        break;
       }
     }
+    end = text.size();
+    //std::cerr << "in1: " << iN1 << " ,in2: " << iN2 << std::endl;
     n1 = text.substr(0, iN1);
     if (!has_weight) {
       int len = end - iN2; 
@@ -429,7 +421,20 @@ std::unordered_map<std::string, int> parseTxtFile(
     } else {
       int len = wl - iN2;
       n2 = text.substr(iN2, len);
-      weight = std::stoi(text.substr(wl+1, end-wl));
+      weight_str = text.substr(wl+1, end);
+      //std:: cerr << "weight_str: " << weight_str <<"|" << std::endl;
+      //std::cerr << "n1: " << n1 << " ,n2: " << n2 << " wl: " << wl << " end: " << end << std::endl;
+      if (weight_str.find('e') < weight_str.length()) {
+        // exponential value
+        std::istringstream os(weight_str);
+        os >> weight;
+      } else  {
+        weight = std::stoi(weight_str);
+      }
+      //std::cerr << "weight" << weight << std::endl;
+      /*
+      if (weight<50)
+        continue;*/
     }
 
     outfile << text + "\n";
