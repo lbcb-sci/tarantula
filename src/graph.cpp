@@ -223,7 +223,7 @@ void Graph::Construct(
   for (const auto& window_matrix : window_matrix_all_contig) {
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
     myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
-    myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
+    //myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
     contigs_iter = contigs.find(window_matrix.first);
     for (int r = 0; r < window_matrix.second.size(); r++) {
       for (int x = 0; x < r; x++) {
@@ -231,13 +231,13 @@ void Graph::Construct(
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
-          myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*10000 << "\n";
+          //myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*10000 << "\n";
         }       
       }
     }
     myfile.close();
     myfile2.close();
-    myfile3.close();
+    //myfile3.close();
   }
   /*} else {
     // skip stage
@@ -250,7 +250,6 @@ void Graph::Construct(
   //window_id_map.size()
   //std::cerr << "whats happeniing here? " << std::endl;
   std::vector<std::future<void>> void_futures;
-  thread_pool_ = std::make_shared<thread_pool::ThreadPool>(num_threads/2);
   for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
       // be sure to used std::ref() or std::cref() for references
     void_futures.emplace_back(thread_pool_->Submit([&] (
@@ -258,8 +257,8 @@ void Graph::Construct(
       int contig_id, 
       int numRuns) -> void {
       std::ofstream myfile;
-      std::string input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
+      std::string input = "contig_" + std::to_string(contig_id) + "_scaled.txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, int> map_table;
@@ -452,61 +451,44 @@ void Graph::Construct(
   return;
 }
 
-/*
-uint32_t Graph::CalculateRestrictionSites(std::unique_ptr<biosoup::NucleicAcid> const& target) {
-  std::string contig_seq = target->InflateData();
-  uint32_t gatc = KMPSearch("GATC", contig_seq);
-  uint32_t gantc = KMPSearch("GANTC", contig_seq);
-  return gantc + gatc;
-}*/
-
-std::vector<uint32_t> Graph::CalculateRestrictionSites(std::unique_ptr<biosoup::NucleicAcid> const& target, int window_size) {
-  std::vector<uint32_t> restriction_sites;
-  std::string contig_seq = target->InflateData();
-  std::cerr << "contig seq size: " << contig_seq.size() << std::endl;
-  int size = ceil(contig_seq.size()/window_size);
-  int start = 0, end = window_size;
-  uint32_t gatc, gantc;
-  while (start < contig_seq.size()) {
-    if (end > contig_seq.size()) {
-      end = contig_seq.size();
-    }
-    gatc = KMPSearch("GATC", contig_seq.substr(start, end));
-    gantc = KMPSearch("GANTC", contig_seq.substr(start, end));
-    restriction_sites.push_back(gantc + gatc);
-    start += window_size;
-    end += window_size;
-    //std::cerr << "start: " << start << " ,end: " << end << std::endl;
-  }
-  
-  return restriction_sites;
-}
-
-uint32_t Graph::KMPSearch(std::string pat, std::string txt)
-{
-  int M = pat.size();
-  int N = txt.size();
+uint32_t Graph::KMPSearch(std::string pat, std::string txt) {
+  int n = txt.length();
+  int m = pat.length();
   uint32_t count = 0;
-  // Preprocess the pattern (calculate lps[] array)
-  int i = 0; // index for txt[]
-  int j = 0; // index for pat[]
-  while (i < N) {
-    if (pat[j] == txt[i]) {
+  // empty pattern can only
+  // match with empty string.
+  // Base Case :
+  if (m == 0)
+    return (n == 0);
+  // step-1 :
+  // initailze markers :
+  int i = 0, j = 0, index_txt = -1;
+  while (i < n) {
+      // For step - (2, 5)
+    if (j < m && txt[i] == pat[j]) {
+      i++;
       j++;
+    }
+    // For step - (3)
+    else if (j < m && pat[j] == '?') {
+      index_txt = i;
+      i++;
+      j++;
+    }
+    // For step - (6)
+    else if (index_txt != -1) {
+      j = 0;
+      i = index_txt;
+      index_txt = -1;
+    } 
+    else {
+      j = 0;
       i++;
     }
-    if (j == M) {
+    if (j == m) {
+      //cout << "seq: " << i-j << std::endl; 
       count++;
       j = 0;
-    }
-    // mismatch after j matches
-    else if (i < N && pat[j] != txt[i]) {
-        // Do not match lps[0..lps[j-1]] characters,
-        // they will match anyway
-      if (j != 0)
-          j = 0;
-      else
-          i = i + 1;
     }
   }
   return count;
@@ -557,14 +539,11 @@ void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::Nuc
       std::string contig_seq = target->InflateData();
       std::cerr << "contig seq size: " << contig_seq.size() << std::endl;
       int size = ceil(contig_seq.size()/window_size);
-      int start = 0, end = window_size;
+      int start = 0;
       uint32_t gatc, gantc;
       while (start < contig_seq.size()) {
-        if (end > contig_seq.size()) {
-          end = contig_seq.size();
-        }
-        gatc = KMPSearch("GATC", contig_seq.substr(start, end));
-        gantc = KMPSearch("GANTC", contig_seq.substr(start, end));
+        gatc = KMPSearch("GATC", contig_seq.substr(start, window_size));
+        gantc = KMPSearch("GA?TC", contig_seq.substr(start, window_size));
         try {
           if (restriction_sites.capacity() == restriction_sites.size()) 
             restriction_sites.reserve(restriction_sites.capacity() * 1.1);
@@ -574,10 +553,16 @@ void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::Nuc
         } 
         restriction_sites.push_back(gantc + gatc);
         start += window_size;
-        end += window_size;
-        //std::cerr << "start: " << start << " ,end: " << end << std::endl;
       }
       contigs.find(target->id)->second.restriction_sites = restriction_sites;
+
+      std::ofstream myfile;
+      std::cerr << "contig_" + std::to_string(target->id) +"number seg restriction sites: " << restriction_sites.size() << std::endl;
+      myfile.open("contig_" + std::to_string(target->id) + "_restriction_sites.txt");
+      for (auto const& rs : restriction_sites) {
+        myfile << rs << "\n";
+      }
+      myfile.close();
     }, std::cref(target), window_size));
   }
   for (const auto& it : futures) {
