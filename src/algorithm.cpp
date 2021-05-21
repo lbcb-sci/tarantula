@@ -524,7 +524,7 @@ void GenerateGraphFromDirectedForceAlgorithm(
   std::string input,
   std::string output) {
   // params
-  int iterations = 1000, width = 1000, length = 1000;  
+  int iterations = 1000, width = 200, length = 200;  
   int algoType = 1;  // default is barnes hut
   bool dynamic = true, random = false, color = false;
   double mass = 1, theta = 0.01; 
@@ -534,10 +534,11 @@ void GenerateGraphFromDirectedForceAlgorithm(
   //std::cerr << "\n[GraphVisualisation] " << input << std::endl;
   //std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
 
+  /*
   if (vertices.size() < 1000) {
     width = vertices.size();
     length = vertices.size();
-  }
+  }*/
   
   map_table = parseTxtFile(input, vertices, edges, output, color);
   if (vertices.size() == 0) {
@@ -572,7 +573,7 @@ void GenerateGraphFromDirectedForceAlgorithm(
   std::vector<std::vector<double>>& edges,
   std::unordered_map<std::string, int>& map_table) {
   // params
-  int iterations = 1000, width = 1000, length = 1000;  
+  int iterations = 1000, width = 200, length = 200;  
   int algoType = 1;  // default is barnes hut
   bool dynamic = true, random = false, color = false;
   double mass = 1, theta = 0.01; 
@@ -584,11 +585,11 @@ void GenerateGraphFromDirectedForceAlgorithm(
   if (vertices.size() == 0) {
     return;
   }
-  
+  /*
   if (vertices.size() < 1000) {
     width = vertices.size();
     length = vertices.size();
-  }
+  }*/
   
 
   initVerticesPosition(vertices, width, length, random); 

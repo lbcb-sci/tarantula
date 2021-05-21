@@ -31,7 +31,7 @@ void Graph::Construct(
   int numRuns = 0;
   std::ofstream myfile, myfile2, myfile3;
  
-  // if (false) {
+  if (true) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
   double frequency = 0.0001;
@@ -223,7 +223,7 @@ void Graph::Construct(
   for (const auto& window_matrix : window_matrix_all_contig) {
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
     myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
-    //myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
+    myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
     contigs_iter = contigs.find(window_matrix.first);
     for (int r = 0; r < window_matrix.second.size(); r++) {
       for (int x = 0; x < r; x++) {
@@ -231,21 +231,21 @@ void Graph::Construct(
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
-          //myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*10000 << "\n";
+          myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*1000 << "\n";
         }       
       }
     }
     myfile.close();
     myfile2.close();
-    //myfile3.close();
+    myfile3.close();
   }
-  /*} else {
+  } else {
     // skip stage
     CreateGraph(targets);
     window_id_map = GenerateMapWindowID();
     std:cerr << "Number of contigs " << window_id_map.size() << std::endl;
     numRuns = 1;
-  }*/
+  }
   // directed force
   //window_id_map.size()
   //std::cerr << "whats happeniing here? " << std::endl;
@@ -257,8 +257,8 @@ void Graph::Construct(
       int contig_id, 
       int numRuns) -> void {
       std::ofstream myfile;
-      std::string input = "contig_" + std::to_string(contig_id) + "_scaled.txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_output.txt";
+      std::string input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, int> map_table;
