@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <queue>
+#include <numeric>
 
 #include "biosoup/timer.hpp"
 #include "cereal/archives/json.hpp"
@@ -205,15 +206,17 @@ void Graph::Construct(
   for (const auto& contig : contigs) {
     sum_interchromosome_links += contig.second.interchromosome_links;
     sum_intrachromosome_links += contig.second.intrachromosome_links;
+    /*
     std::cerr << "[tarantula::Construct] Contig = " << contig.first
               << " Intrachromosome links = " << contig.second.intrachromosome_links
               << " Interchromosome links = " << contig.second.interchromosome_links
-              << std::endl;
+              << std::endl;*/
   }
+  /*
   std::cerr << "[tarantula::Construct] Total Intrachromosome links = "
             << sum_intrachromosome_links
             << " Total Interchromosome links = " << sum_interchromosome_links/2
-            << std::endl;
+            << std::endl;*/
 
   CalculateAllRestrictionSite(targets, window_size);
 
@@ -225,16 +228,26 @@ void Graph::Construct(
     myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
     myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
     contigs_iter = contigs.find(window_matrix.first);
+    int node_count = 0;
+    bool node_aval = false;
     for (int r = 0; r < window_matrix.second.size(); r++) {
       for (int x = 0; x < r; x++) {
         if (window_matrix.second[r][x] != 0) {
+          node_aval = true;
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
           myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*1000 << "\n";
-        }       
+        }
+      }
+      if (node_aval) {
+        node_aval = false;
+        node_count++;
       }
     }
+    std::cerr << "contig: " << std::to_string(window_matrix.first) 
+    << "num nodes: " << window_matrix.second.size() 
+    << " node count in graph: " << node_count << std::endl;
     myfile.close();
     myfile2.close();
     myfile3.close();
@@ -249,16 +262,16 @@ void Graph::Construct(
   // directed force
   //window_id_map.size()
   //std::cerr << "whats happeniing here? " << std::endl;
-  std::vector<std::future<void>> void_futures;
+  std::vector<std::future<std::string>> futures;
   for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
       // be sure to used std::ref() or std::cref() for references
-    void_futures.emplace_back(thread_pool_->Submit([&] (
+    futures.emplace_back(thread_pool_->Submit([&] (
       std::vector<int>& window_id_map, 
       int contig_id, 
-      int numRuns) -> void {
-      std::ofstream myfile;
-      std::string input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
+      int numRuns) -> std::string {
+      std::string output_string = "";
+      std::string input = "contig_" + std::to_string(contig_id) + ".txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, int> map_table;
@@ -269,10 +282,10 @@ void Graph::Construct(
       directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
 
       // no split
-      return;
+      //return;
       
       if (vertices_unmaped.size() == 0)
-        return;
+        return output_string;
       // map first
       int max_index = 0;
       int min_index = INT_MAX;
@@ -324,6 +337,10 @@ void Graph::Construct(
         //std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
         median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]);
       }
+
+      
+
+
       //std::cerr << "calculate median" << std::endl;
       // contig id, pair: begin. end
       std::unordered_map<int, std::pair<int, int>> contigs_id;
@@ -332,10 +349,103 @@ void Graph::Construct(
 
       std::unordered_map<int, int> window_id;
       std::unordered_map<int, int>::iterator window_id_iter;
-      // change to if edge > 2x median --> window id
+      std::unordered_map<int, int> nodes_with_long_edges;
+      std::unordered_map<int, int>::iterator nodes_iter;
+      
+      // if edge > *2 median, count the +-10 nodes distance & write to file
+
+      // if edge > *2 median, get all the nodes
+      for (auto& conseq_edge : conseq_edges_length) {
+        if (get<0>(conseq_edge) >= median_conseq_edges*2) {
+          nodes_iter = nodes_with_long_edges.find(get<1>(conseq_edge));
+          if (nodes_iter == nodes_with_long_edges.end()) {
+            nodes_with_long_edges.insert({get<1>(conseq_edge), 0});
+          }
+          nodes_iter = nodes_with_long_edges.find(get<2>(conseq_edge));
+          if (nodes_iter == nodes_with_long_edges.end()) {
+            nodes_with_long_edges.insert({get<2>(conseq_edge), 0});
+          }
+        }
+      }
+      output_string += "contig " + to_string(contig_id) + " nodes with long edges: " + to_string(nodes_with_long_edges.size()) + "\n";
+      //std::cerr << "contig " << contig_id  << " nodes with long edges: " << nodes_with_long_edges.size() << std::endl;
+      std::unordered_map<uint32_t, double> neighbours;
+      std::unordered_map<uint32_t, double>::iterator neighbours_iter;
+      std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator vert_iter;
+      std::shared_ptr<directedforce::Vertex> neighbour_vertex, cur_vertex;
+      directedforce::MathVector edge;
+      int first_nbour, last_nbour;
+      uint32_t num_vertices = vertices.size();
+      uint32_t multiplier = 10;
+      uint32_t node_multiplied;
+      while (num_vertices != 0) {
+        num_vertices /= 10;     // n = n/10
+        multiplier*=10;
+      }
+      for (const auto& node : nodes_with_long_edges) {
+        first_nbour = node.first - 10;
+        last_nbour = node.first + 10;
+        if (last_nbour >= vertices.size()) {
+          last_nbour = vertices.size()-1;
+        }
+        node_multiplied = node.first*multiplier;
+        vert_iter = vertices.find(node.first);
+        if (vert_iter != vertices.end()) {
+          cur_vertex = vert_iter->second;
+        } else {
+          //std::cerr << "contig " << contig_id << " ERROR, cannot find vertice " << node.first << std::endl;
+        }
+        
+        for (int r = first_nbour; r <= last_nbour; r++) {
+          if (r != node.first) {
+            // check if its already calculated
+            neighbours_iter = neighbours.find(node_multiplied+r);
+            if (neighbours_iter == neighbours.end()) {
+              // calculate distance between r & node.first
+              vert_iter = vertices.find(r);
+              if (vert_iter != vertices.end()) {
+                neighbour_vertex = vert_iter->second; 
+                edge = cur_vertex->pos - neighbour_vertex->pos;
+                neighbours.insert({node_multiplied+r, edge.abs()});
+              } else {
+                //std::cerr << "contig " << contig_id << " ERROR, cannot find vertice " << node.first << std::endl;
+              }
+            }
+          } 
+        }
+      }
+      output_string += "contig " + to_string(contig_id) + " number of neighbours = " + to_string(neighbours.size()) + "\n";
+      //std::cerr << "contig " << contig_id << " number of neighbours = " << neighbours.size() << std::endl;
+      // get median & deviation for this contig
+      std::vector<double> neighbour_distances;
+      if (neighbours.size() != 0) {
+        for(const auto& n : neighbours)
+          neighbour_distances.push_back(n.second);
+        /*
+        std::vector<std::pair<uint32_t,double>> neighbour_vector {neighbours.begin(), neighbours.end()};
+        std::sort(neighbour_vector.begin(), neighbour_vector.end(),
+        [] (const std::pair<uint32_t, double>& n1,
+            const std::pair<uint32_t, double>& n2) -> bool {
+          return n1.second < n2.second;
+        });*/
+        std::sort(neighbour_distances.begin(), neighbour_distances.end());
+        auto median = neighbour_distances[neighbour_distances.size()/2];
+        output_string += "contig " + to_string(contig_id) + " Median: " + to_string(median) + "\n";
+        //std::cerr << "contig " << contig_id << " Median: " << median << std::endl;
+        double sum = std::accumulate(neighbour_distances.begin(), neighbour_distances.end(), 0.0);
+        double mean = sum / neighbour_distances.size();
+
+        double sq_sum = std::inner_product(neighbour_distances.begin(), neighbour_distances.end(), neighbour_distances.begin(), 0.0);
+        double stdev = std::sqrt(sq_sum / neighbour_distances.size() - mean * mean);
+
+        output_string += "contig " + to_string(contig_id) + " sd: " + to_string(stdev) + "\n";
+        //std::cerr << "contig " << contig_id << " sd: " << stdev << std::endl;
+      }
+      output_string += "\n";
+      return output_string;
 
       for (auto& conseq_edge : conseq_edges_length) {
-        if (get<0>(conseq_edge) >= median_conseq_edges) {
+        if (get<0>(conseq_edge) >= median_conseq_edges*2) {
           long_edges.emplace_back(conseq_edge);
           window_id_iter = window_id.find(get<1>(conseq_edge));
           if (window_id_iter == window_id.end()) {
@@ -356,7 +466,7 @@ void Graph::Construct(
 
       if (long_edges.size() == 0) {
         std::cerr << "contig " << contig_id  << " have no long edges" << std::endl;
-        return;
+        return output_string;
       }
 
 
@@ -445,8 +555,11 @@ void Graph::Construct(
       directedforce::GenerateGraphFromDirectedForceAlgorithm("contig_" + std::to_string(contig_id) + "_split.txt", "contig_" + std::to_string(contig_id) + "_split_output.txt");
     }, std::ref(window_id_map), i, numRuns));
   }
-  for (const auto& it : void_futures) {
-    it.wait();
+  std::string output_string;
+  myfile.open("median_sd.txt");
+  for (auto& it : futures) {
+    output_string = it.get();
+    myfile << output_string;
   }
   return;
 }
@@ -518,6 +631,7 @@ void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   for (auto const& target : targets) {
     // be sure to used std::ref() or std::cref() for references
+    std::cerr << "contig id: " << target->id << " len: " << target->inflated_len <<  " , num windows: " << std::ceil((double)target->inflated_len/25000) << std::endl;
     contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size)); 
   }
   
@@ -557,7 +671,7 @@ void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::Nuc
       contigs.find(target->id)->second.restriction_sites = restriction_sites;
 
       std::ofstream myfile;
-      std::cerr << "contig_" + std::to_string(target->id) +"number seg restriction sites: " << restriction_sites.size() << std::endl;
+      //std::cerr << "contig_" + std::to_string(target->id) +"number seg restriction sites: " << restriction_sites.size() << std::endl;
       myfile.open("contig_" + std::to_string(target->id) + "_restriction_sites.txt");
       for (auto const& rs : restriction_sites) {
         myfile << rs << "\n";
