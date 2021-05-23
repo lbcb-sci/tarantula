@@ -30,7 +30,7 @@ void Graph::Construct(
     uint32_t num_threads) {
   std::vector<int> window_id_map;
   int numRuns = 0;
-  std::ofstream myfile, myfile2, myfile3;
+  std::ofstream myfile, myfile2, myfile3, myfile4;
  
   if (true) {
   // paramters for RAM
@@ -227,6 +227,7 @@ void Graph::Construct(
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
     myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
     myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
+    myfile4.open("contig_" + std::to_string(window_matrix.first) + "_restriction_site_analysis.txt");
     contigs_iter = contigs.find(window_matrix.first);
     int node_count = 0;
     bool node_aval = false;
@@ -238,6 +239,11 @@ void Graph::Construct(
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
           myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*1000 << "\n";
+          myfile4 << r << "--" << x << "," << window_matrix.second[r][x] << " / (" 
+                  << contigs_iter->second.restriction_sites[r] << " + "
+                  << contigs_iter->second.restriction_sites[x] << ") = "
+                  << window_matrix.second[r][x] << " / " << site_count << " = "
+                  << (double)window_matrix.second[r][x]/site_count << "\n";
         }
       }
       if (node_aval) {
@@ -251,6 +257,7 @@ void Graph::Construct(
     myfile.close();
     myfile2.close();
     myfile3.close();
+    myfile4.close();
   }
   } else {
     // skip stage
