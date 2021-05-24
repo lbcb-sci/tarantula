@@ -30,7 +30,7 @@ void Graph::Construct(
     uint32_t num_threads) {
   std::vector<int> window_id_map;
   int numRuns = 0;
-  std::ofstream myfile, myfile2, myfile3, myfile4;
+  std::ofstream myfile, myfile2, myfile3, myfile4, myfile5, myfile6, myfile7;
  
   if (true) {
   // paramters for RAM
@@ -231,19 +231,25 @@ void Graph::Construct(
     contigs_iter = contigs.find(window_matrix.first);
     int node_count = 0;
     bool node_aval = false;
+    double weight;
+    int count = 0;
     for (int r = 0; r < window_matrix.second.size(); r++) {
       for (int x = 0; x < r; x++) {
         if (window_matrix.second[r][x] != 0) {
           node_aval = true;
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
+          weight = (double)window_matrix.second[r][x]/site_count;
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
-          myfile2 << r << "--" << x << "," << (double)window_matrix.second[r][x]/site_count << "\n";
-          myfile3 << r << "--" << x << "," << ((double)window_matrix.second[r][x]/site_count)*1000 << "\n";
+          myfile2 << r << "--" << x << "," << weight << "\n"; 
+          myfile3 << r << "--" << x << "," << weight*1000 << "\n";
           myfile4 << r << "--" << x << "," << window_matrix.second[r][x] << " / (" 
                   << contigs_iter->second.restriction_sites[r] << " + "
                   << contigs_iter->second.restriction_sites[x] << ") = "
                   << window_matrix.second[r][x] << " / " << site_count << " = "
-                  << (double)window_matrix.second[r][x]/site_count << "\n";
+                  << weight << "\n";
+          if (weight > 1) {
+            count++;
+          }
         }
       }
       if (node_aval) {
@@ -251,13 +257,29 @@ void Graph::Construct(
         node_count++;
       }
     }
+    myfile5.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes.txt");
+    myfile6.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes_m.txt");
+    myfile7.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes_m2.txt");
+    for (int r = 0; r < window_matrix.second.size()-1; r++) {
+      int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[r+1];
+      weight = (double)window_matrix.second[r][r+1]/site_count;
+      myfile5 << r << "--" << r+1 << "," << 1 + weight << "\n";
+      myfile6 << r << "--" << r+1 << "," << 1 + weight*1000 << "\n";
+      myfile7 << r << "--" << r+1 << "," << (1 + weight)*100 << "\n";
+    }
+
+
     std::cerr << "contig: " << std::to_string(window_matrix.first) 
-    << "num nodes: " << window_matrix.second.size() 
-    << " node count in graph: " << node_count << std::endl;
+    << " num nodes: " << window_matrix.second.size() 
+    << " node count in graph: " << node_count 
+    << " number of edges with edge > 1 = "  << count << std::endl;
     myfile.close();
     myfile2.close();
     myfile3.close();
     myfile4.close();
+    myfile5.close();
+    myfile6.close();
+    myfile7.close();
   }
   } else {
     // skip stage
@@ -277,8 +299,8 @@ void Graph::Construct(
       int contig_id, 
       int numRuns) -> std::string {
       std::string output_string = "";
-      std::string input = "contig_" + std::to_string(contig_id) + ".txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_output.txt";
+      std::string input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, int> map_table;
@@ -1177,6 +1199,7 @@ void Graph::Process(
           return result;
         }
 
+        /*
         // multiple long reads
         std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>> intra_pairs;
         std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>>::iterator iter;
@@ -1224,7 +1247,9 @@ void Graph::Process(
         if (there_is_result)
           return result;
         else 
-          return {};
+          return {};*/
+        
+        return {};
 
         
         std::cerr << "ERROR IN FILTERING" << std::endl;
