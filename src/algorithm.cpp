@@ -14,7 +14,6 @@
 #include <string>
 
 #include "algorithm.h"
-#include "progressBar.h"
 
 using namespace std; 
 
