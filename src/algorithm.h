@@ -19,7 +19,7 @@ void GenerateGraphFromDirectedForceAlgorithm(
   std::string output,
   std::vector<std::shared_ptr<Vertex>>& vertices,
   std::vector<std::vector<double>>& edges,
-  std::unordered_map<std::string, int>& map_table);
+  std::unordered_map<std::string, std::uint32_t>& map_table);
 
 }  // namespace directedforce
 

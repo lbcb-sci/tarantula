@@ -114,8 +114,7 @@ class Graph {
 
   void Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
-    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
-    uint32_t num_threads);
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences);
   
   void PrintJson(const std::string& path) const;
 
@@ -144,9 +143,6 @@ class Graph {
     std::unique_ptr<biosoup::NucleicAcid>& sequence1,
     std::unique_ptr<biosoup::NucleicAcid>& sequence2);
 
-  //std::pair<std::uint32_t, std::uint32_t> GetOverlap(const Link& link); 
-
-  void FillPileogram();
   void CreateGraph(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets);
 
   int GetNumWindows();
@@ -164,17 +160,7 @@ class Graph {
     std::unordered_map<int, pair<int, bool>>& window_split_map,
     std::vector<std::vector<std::uint32_t>> &matrix);
 
-  void GenerateMatrixWindow(
-    std::vector<int>& window_id_map,
-    std::vector<std::vector<std::uint32_t>> &matrix);
-  
-  std::vector<std::vector<uint32_t>> GetComponents(std::vector<std::vector<std::uint32_t>> &matrix);
-
   std::vector<int> GenerateMapWindowID();
-  std::uint32_t MaxInMatrix(std::vector<std::vector<std::uint32_t>> &matrix);
-  std::uint32_t MaxInter(std::vector<std::vector<std::uint32_t>> &matrix);
-  std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix);
-  int FindContigID(int window_id, std::vector<int>& window_id_map, int *begin, int *end);
   
   void Store(int i) const;
   void Load(int i);

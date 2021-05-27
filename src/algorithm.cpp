@@ -47,7 +47,7 @@ double fRand(double fMin, double fMax) {
 
 void initVerticesPosition(vector<shared_ptr<Vertex>>& vertices, double xMax, double yMax, bool random) {
   if (random) {
-    for (int i = 0; i < vertices.size(); i++) {
+    for (std::uint32_t i = 0; i < vertices.size(); i++) {
       vertices[i]->pos.x = fRand(0, xMax); 
       vertices[i]->pos.y = fRand(0, yMax); 
     }
@@ -147,7 +147,7 @@ bool insert(shared_ptr<Node>& node, shared_ptr<Vertex>& particle) {
 
 Box getBoundingBox(vector<shared_ptr<Vertex>>& vertices) {
   double xMin = 0, yMin = 0, xMax = 0, yMax = 0; 
-  for (int i = 0; i < vertices.size(); i++) {
+  for (std::uint32_t i = 0; i < vertices.size(); i++) {
     if (vertices[i]->pos.x < xMin) {
       xMin = vertices[i]->pos.x; 
     }
@@ -278,15 +278,13 @@ MathVector calculateForceBarnesHutPerVertex(shared_ptr<Node>& node, shared_ptr<V
 
 void calculateRepulsiveForce_barnesHutAlgo(
   vector<shared_ptr<Vertex>>& vertices,
-  vector<vector<double>>& adjMax,
   double k,
   double width,
   double length,
   double mass,
   bool dynamic,
   double theta) {
-  MathVector diff, force; 
-  double diffABS, abs; 
+  MathVector diff, force;
   int numVertices = vertices.size(); 
   // generate tree
   shared_ptr<Node> tree = make_shared<Node>();
@@ -310,7 +308,6 @@ void calculateForceBarnesHut(
 
   calculateRepulsiveForce_barnesHutAlgo(
     vertices,
-    adjMax,
     k,
     width,
     length, 
@@ -334,17 +331,10 @@ void directedForceAlgorithm(
   int numVertices = vertices.size(); 
   int area = W*L;  
   double k = sqrt(area/numVertices); 
-  double coeff, t; 
+  double t, abs; 
 
-  MathVector diff; 
-  double diffABS, abs; 
+  MathVector diff;
 
-  //ProgressBar bar;
-  //bar.set_bar_width(50);
-  //bar.fill_bar_progress_with("■");
-  //bar.fill_bar_remainder_with(" ");
-  //float progress;
-  // in each iterations
   t = 1; 
   for (int iter = 1; iter <= iterations; iter++) {
     if (algoType == 1) {
@@ -355,17 +345,13 @@ void directedForceAlgorithm(
     }
 
     // for both different algorithm, you will need this
-    for (int i = 0; i < vertices.size(); i++) {      
+    for (std::uint32_t i = 0; i < vertices.size(); i++) {      
       abs = vertices[i]->disp.abs(); 
       vertices[i]->pos += vertices[i]->disp/abs * min(abs, t); 
     }
 
     t = cool(t); 
-    // progress bar
-    //progress = (static_cast<double>(iter/iterations))* 100;
-    //bar.update(progress);
   }
-  std::cerr << std::endl;
 }
 
 void duplicateTxtFile(std::string file, std::string copyPath) {
@@ -375,37 +361,30 @@ void duplicateTxtFile(std::string file, std::string copyPath) {
   outFile.close();
 }
 
-std::unordered_map<std::string, int> parseTxtFile(
+std::unordered_map<std::string, std::uint32_t> parseTxtFile(
   std::string path,
   std::vector<std::shared_ptr<Vertex>>& vertices,
   std::vector<std::vector<double>>& edges, 
-  std::string outputPath,
-  bool with_coloring) {
+  std::string outputPath) {
 
   std::string text, n1, n2;
-  std::unordered_map<std::string, int> table; 
+  std::unordered_map<std::string, std::uint32_t> table; 
   std::ifstream infile(path);
   std::ofstream outfile;
   double indexN1 = 0, indexN2 = 0; 
   int iN1 = 0, iN2 = 0, end = 0, wl = 0;
   double weight = 0.0;
-  bool prev = false; 
   std::vector<bool> temp; 
   std::vector<Vertex> vtemp; 
   bool has_weight = false;
-  bool prev_color = false;
   int new_node = 0;
   std::string weight_str;
   outfile.open(outputPath);
   while (getline(infile, text)) {
-    prev = false;
-    
-    
-    for (int i = 0; i < text.size(); i++) {
+    for (std::uint32_t i = 0; i < text.size(); i++) {
       if (text[i] == '-' && text[i+1] == '-') {
         iN1 = i;
         iN2 = i+2;
-        prev = false; 
       } else if (text[i] == ',') {
         has_weight = true;
         wl = i;
@@ -463,7 +442,6 @@ std::unordered_map<std::string, int> parseTxtFile(
       indexN2 = it2->second; 
     }
     if (new_node > 0) {
-      int num_edges = edges.size();
       for (auto& col : edges) {
         for (int i = 0; i < new_node; i++) {
           col.push_back(0);
@@ -487,7 +465,7 @@ std::unordered_map<std::string, int> parseTxtFile(
   }
   outfile.close();
 
-  for (int i = 0; i < vtemp.size(); i++) {
+  for (std::uint32_t i = 0; i < vtemp.size(); i++) {
     vertices.push_back(std::make_shared<Vertex>(vtemp[i])); 
   }
 
@@ -499,13 +477,13 @@ void generateOutputFile(
   std::string inputPath,
   std::string path,
   std::vector<std::shared_ptr<Vertex>>& vertices,
-  std::unordered_map<std::string, int> mapTable) {
+  std::unordered_map<std::string, std::uint32_t> mapTable) {
 
   std::ifstream infile(inputPath); 
   std::ofstream outfile(path, std::ios_base::app); 
 
   outfile << "-" << std::endl; 
-  for (int i = 0; i < vertices.size(); i++) {
+  for (std::uint32_t i = 0; i < vertices.size(); i++) {
       std::string vertex;
       for (auto map : mapTable) {
         if (map.second == i) {
@@ -526,10 +504,10 @@ void GenerateGraphFromDirectedForceAlgorithm(
   // params
   int iterations = 1000, width = 200, length = 200;  
   int algoType = 1;  // default is barnes hut
-  bool dynamic = true, random = false, color = false;
+  bool dynamic = true, random = false;
   double mass = 1, theta = 0.01; 
   std::vector<std::vector<double>> edges;
-  std::unordered_map<std::string, int> map_table;
+  std::unordered_map<std::string, std::uint32_t> map_table;
   std::vector<std::shared_ptr<Vertex>> vertices;
   //std::cerr << "\n[GraphVisualisation] " << input << std::endl;
   //std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
@@ -540,7 +518,7 @@ void GenerateGraphFromDirectedForceAlgorithm(
     length = vertices.size();
   }*/
   
-  map_table = parseTxtFile(input, vertices, edges, output, color);
+  map_table = parseTxtFile(input, vertices, edges, output);
   if (vertices.size() == 0) {
     return;
   }
@@ -571,17 +549,17 @@ void GenerateGraphFromDirectedForceAlgorithm(
   std::string output,
   std::vector<std::shared_ptr<Vertex>>& vertices,
   std::vector<std::vector<double>>& edges,
-  std::unordered_map<std::string, int>& map_table) {
+  std::unordered_map<std::string, std::uint32_t>& map_table) {
   // params
   int iterations = 1000, width = 200, length = 200;  
   int algoType = 1;  // default is barnes hut
-  bool dynamic = true, random = false, color = false;
+  bool dynamic = true, random = false;
   double mass = 1, theta = 0.01; 
 
   //std::cerr << "\n[GraphVisualisation] " << input << std::endl;
   //std::cerr << "[GraphVisualisation] Reading vertices" << std::endl;
 
-  map_table = parseTxtFile(input, vertices, edges, output, color);
+  map_table = parseTxtFile(input, vertices, edges, output);
   if (vertices.size() == 0) {
     return;
   }

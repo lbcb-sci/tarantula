@@ -26,12 +26,12 @@ Graph::Graph(
 
 void Graph::Construct(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
-    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
-    uint32_t num_threads) {
+    std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences) {
   std::vector<int> window_id_map;
   int numRuns = 0;
   std::ofstream myfile, myfile2, myfile3, myfile4, myfile5, myfile6, myfile7;
- 
+
+ // change to false if contig_?.txt is already generated --> will skip to directed force algorithm immediately
   if (true) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
@@ -72,41 +72,44 @@ void Graph::Construct(
   std::vector<std::future<std::vector<Link>>> futures;
   biosoup::Timer timer;
 
+  // create graph - initialise contigs & windows for each contig
+  std::cerr << "[tarantula::Construct]-----------------CREATE GRAPH-----------------" << std::endl;
   timer.Start();
-  // then create pilo-o-gram per contig
   CreateGraph(targets);
   std::cerr << "[tarantula::Construct] Graph created, number of nodes: "
             << contigs.size() << " "
             << timer.Stop() << "s"
             << std::endl;
 
-
-  // filter pair + less than 4GB
+  // map window id such that all windows in all the contigs have unique id
   timer.Start();
   std::size_t bytes = 0;
   window_id_map = GenerateMapWindowID();
   int total_windows = GetNumWindows();
   std::cerr << "[tarantula::Construct] Number of windows = " << total_windows << std::endl;
-  //std::vector<std::vector<std::uint32_t>> window_matrix(total_windows, std::vector<std::uint32_t>(total_windows, 0));
 
-  // window matrix per contig
+  // window matrix per contig - key is contig id, value is window matrix
   std::unordered_map<std::uint32_t, ::vector<std::vector<std::uint32_t>>> window_matrix_all_contig;
 
   // initialise window matrix per contig
-  for (int i = 1; i <= window_id_map.size(); i ++) {
+  for (std::uint32_t i = 1; i <= window_id_map.size(); i ++) {
     int size;
     if (i == window_id_map.size())
       size = total_windows - window_id_map[i-1];
     else
       size = window_id_map[i] - window_id_map[i-1];
     std::vector<std::vector<std::uint32_t>> temp_matrix(size, std::vector<std::uint32_t>(size, 0));
-    window_matrix_all_contig.insert({i-1,temp_matrix});
+    window_matrix_all_contig.insert({i-1, temp_matrix});
   }
 
 
   std::cerr << "[tarantula::Construct] Total number of sequence: "
             << sequences.size() << std::endl;
+
+  std::cerr << "[tarantula::Construct]-----------------FILTERING-----------------" << std::endl;
   
+
+  // filter pair + in batches of 4gb of sequence
   for (std::uint32_t i=0; i< sequences.size()-1; i++) {
     if (sequences[i]->name.compare(sequences[i+1]->name) == 0) {
       num_pair+=1;
@@ -157,8 +160,7 @@ void Graph::Construct(
       numRuns++;
     }
   }
-  // inter.close();
-  // intra.close();
+  
   std::cerr << "[tarantula::Construct]-----------FILTERING STATISTICS-----------------" << std::endl;
   std::cerr << "[tarantula::Construct] Total number of reads: "
             << sequences.size() << std::endl;
@@ -206,22 +208,10 @@ void Graph::Construct(
   for (const auto& contig : contigs) {
     sum_interchromosome_links += contig.second.interchromosome_links;
     sum_intrachromosome_links += contig.second.intrachromosome_links;
-    /*
-    std::cerr << "[tarantula::Construct] Contig = " << contig.first
-              << " Intrachromosome links = " << contig.second.intrachromosome_links
-              << " Interchromosome links = " << contig.second.interchromosome_links
-              << std::endl;*/
   }
-  /*
-  std::cerr << "[tarantula::Construct] Total Intrachromosome links = "
-            << sum_intrachromosome_links
-            << " Total Interchromosome links = " << sum_interchromosome_links/2
-            << std::endl;*/
-
   CalculateAllRestrictionSite(targets, window_size);
 
-  int start, end;
-
+  // write graph to text file for directed force algorithm
   std::unordered_map<std::uint32_t, Node>::iterator contigs_iter;
   for (const auto& window_matrix : window_matrix_all_contig) {
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
@@ -233,15 +223,24 @@ void Graph::Construct(
     bool node_aval = false;
     double weight;
     int count = 0;
-    for (int r = 0; r < window_matrix.second.size(); r++) {
-      for (int x = 0; x < r; x++) {
-        if (window_matrix.second[r][x] != 0) {
+    for (std::uint32_t r = 0; r < window_matrix.second.size(); r++) {
+      for (std::uint32_t x = 0; x < r; x++) {
+        if (x == r-1) {
+          //std::cerr << "did this happen at all...." << std::endl;
           node_aval = true;
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
-          weight = (double)window_matrix.second[r][x]/site_count;
+          weight = static_cast<double>(window_matrix.second[r][x])/site_count;
+          myfile << r << "--" << x << "," << 1 + window_matrix.second[r][x] << "\n";
+          myfile2 << r << "--" << r+1 << "," << 1 + weight << "\n";
+          myfile3 << r << "--" << r+1 << "," << 1 + weight*100 << "\n";
+        } else if (window_matrix.second[r][x] != 0) {
+          
+          node_aval = true;
+          int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
+          weight = static_cast<double>(window_matrix.second[r][x])/site_count;
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile2 << r << "--" << x << "," << weight << "\n"; 
-          myfile3 << r << "--" << x << "," << weight*1000 << "\n";
+          myfile3 << r << "--" << x << "," << weight*100 << "\n";
           myfile4 << r << "--" << x << "," << window_matrix.second[r][x] << " / (" 
                   << contigs_iter->second.restriction_sites[r] << " + "
                   << contigs_iter->second.restriction_sites[x] << ") = "
@@ -257,40 +256,26 @@ void Graph::Construct(
         node_count++;
       }
     }
-    myfile5.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes.txt");
-    myfile6.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes_m.txt");
-    myfile7.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes_m2.txt");
-    for (int r = 0; r < window_matrix.second.size()-1; r++) {
-      int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[r+1];
-      weight = (double)window_matrix.second[r][r+1]/site_count;
-      myfile5 << r << "--" << r+1 << "," << 1 + weight << "\n";
-      myfile6 << r << "--" << r+1 << "," << 1 + weight*1000 << "\n";
-      myfile7 << r << "--" << r+1 << "," << (1 + weight)*100 << "\n";
-    }
-
-
+    
+    /*
     std::cerr << "contig: " << std::to_string(window_matrix.first) 
     << " num nodes: " << window_matrix.second.size() 
     << " node count in graph: " << node_count 
-    << " number of edges with edge > 1 = "  << count << std::endl;
+    << " number of edges with edge > 1 = "  << count << std::endl;*/
     myfile.close();
     myfile2.close();
     myfile3.close();
     myfile4.close();
-    myfile5.close();
-    myfile6.close();
-    myfile7.close();
   }
   } else {
     // skip stage
     CreateGraph(targets);
     window_id_map = GenerateMapWindowID();
-    std:cerr << "Number of contigs " << window_id_map.size() << std::endl;
+    std::cerr << "[tarantula::Construct] Number of contigs " << window_id_map.size() << std::endl;
     numRuns = 1;
   }
-  // directed force
-  //window_id_map.size()
-  //std::cerr << "whats happeniing here? " << std::endl;
+  std::cerr << "[tarantula::Construct]-----------DIRECTED FORCE ALGORITHM-----------------" << std::endl;
+  // directed force algorithm to get position of nodes
   std::vector<std::future<std::string>> futures;
   for (std::uint32_t i = 0; i < window_id_map.size(); i++) {
       // be sure to used std::ref() or std::cref() for references
@@ -303,24 +288,24 @@ void Graph::Construct(
       std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
-      std::unordered_map<std::string, int> map_table;
+      std::unordered_map<std::string, std::uint32_t> map_table;
       std::unordered_map<int, std::shared_ptr<directedforce::Vertex>> vertices;
       std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter1;
       std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter2;
 
       directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
-
+      
       // no split
       //return;
       
       if (vertices_unmaped.size() == 0)
         return output_string;
-      // map first
+
+      // map first because the vertices is unmapped to the id
       int max_index = 0;
       int min_index = INT_MAX;
-      //std::cerr << "directed force map table size: " << map_table.size() << endl;
       for (auto& index : map_table) { 
-        vertices.insert({std::stoi(index.first),vertices_unmaped[index.second]});
+        vertices.insert({std::stoi(index.first), vertices_unmaped[index.second]});
         if (std::stoi(index.first) > max_index) {
           max_index = std::stoi(index.first);
         }
@@ -328,8 +313,6 @@ void Graph::Construct(
           min_index = std::stoi(index.first);
         }
       }
-      //std::cerr << "min index: " << min_index << std::endl;
-      //std::cerr << "max index: " << max_index << std::endl; 
       std::vector<std::tuple<double, int, int>> conseq_edges_length;
       std::vector<std::tuple<double, int, int>> long_edges;
       for (int r = min_index; r < max_index; r++) {
@@ -343,43 +326,32 @@ void Graph::Construct(
         }
       }
 
-      //std::cerr << "crash where?" << std::endl;
-      
       std::sort(conseq_edges_length.begin(), conseq_edges_length.end(),
       [] (const std::tuple<double, int, int>& e1,
           const std::tuple<double, int, int>& e2) -> bool {
         return get<0>(e1) < get<0>(e2);
       });
 
-      //std::cerr << "sorting?" << std::endl;
       int num_conseq_edges = conseq_edges_length.size();
-      //std::cerr << "size: " << num_conseq_edges << std::endl;
       double median_conseq_edges;
       // calculate median
       if (num_conseq_edges % 2 == 0) {
         // even
-        //std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
         median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]) +
                               get<0>(conseq_edges_length[num_conseq_edges/2 - 1]);
         median_conseq_edges /= 2;
       } else {
-        //std::cerr << "size/2 " << get<0>(conseq_edges_length[num_conseq_edges/2]) << std::endl;
         median_conseq_edges = get<0>(conseq_edges_length[num_conseq_edges/2]);
       }
 
       
-
-
-      //std::cerr << "calculate median" << std::endl;
       // contig id, pair: begin. end
       std::unordered_map<int, std::pair<int, int>> contigs_id;
       std::unordered_map<int, std::pair<int, int>>::iterator contigs_itr;
-      // if edge > 2x median
-
       std::unordered_map<int, int> window_id;
       std::unordered_map<int, int>::iterator window_id_iter;
-      std::unordered_map<int, int> nodes_with_long_edges;
-      std::unordered_map<int, int>::iterator nodes_iter;
+      std::unordered_map<std::uint32_t , std::uint32_t> nodes_with_long_edges;
+      std::unordered_map<std::uint32_t , std::uint32_t>::iterator nodes_iter;
       
       // if edge > *2 median, count the +-10 nodes distance & write to file
 
@@ -397,18 +369,17 @@ void Graph::Construct(
         }
       }
       output_string += "contig " + to_string(contig_id) + " nodes with long edges: " + to_string(nodes_with_long_edges.size()) + "\n";
-      //std::cerr << "contig " << contig_id  << " nodes with long edges: " << nodes_with_long_edges.size() << std::endl;
       std::unordered_map<uint32_t, double> neighbours;
       std::unordered_map<uint32_t, double>::iterator neighbours_iter;
       std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator vert_iter;
       std::shared_ptr<directedforce::Vertex> neighbour_vertex, cur_vertex;
       directedforce::MathVector edge;
-      int first_nbour, last_nbour;
+      std::uint32_t first_nbour, last_nbour;
       uint32_t num_vertices = vertices.size();
       uint32_t multiplier = 10;
       uint32_t node_multiplied;
       while (num_vertices != 0) {
-        num_vertices /= 10;     // n = n/10
+        num_vertices /= 10;
         multiplier*=10;
       }
       for (const auto& node : nodes_with_long_edges) {
@@ -421,11 +392,9 @@ void Graph::Construct(
         vert_iter = vertices.find(node.first);
         if (vert_iter != vertices.end()) {
           cur_vertex = vert_iter->second;
-        } else {
-          //std::cerr << "contig " << contig_id << " ERROR, cannot find vertice " << node.first << std::endl;
         }
         
-        for (int r = first_nbour; r <= last_nbour; r++) {
+        for (std::uint32_t r = first_nbour; r <= last_nbour; r++) {
           if (r != node.first) {
             // check if its already calculated
             neighbours_iter = neighbours.find(node_multiplied+r);
@@ -436,31 +405,21 @@ void Graph::Construct(
                 neighbour_vertex = vert_iter->second; 
                 edge = cur_vertex->pos - neighbour_vertex->pos;
                 neighbours.insert({node_multiplied+r, edge.abs()});
-              } else {
-                //std::cerr << "contig " << contig_id << " ERROR, cannot find vertice " << node.first << std::endl;
               }
             }
           } 
         }
       }
       output_string += "contig " + to_string(contig_id) + " number of neighbours = " + to_string(neighbours.size()) + "\n";
-      //std::cerr << "contig " << contig_id << " number of neighbours = " << neighbours.size() << std::endl;
       // get median & deviation for this contig
       std::vector<double> neighbour_distances;
       if (neighbours.size() != 0) {
-        for(const auto& n : neighbours)
+        for (const auto& n : neighbours)
           neighbour_distances.push_back(n.second);
-        /*
-        std::vector<std::pair<uint32_t,double>> neighbour_vector {neighbours.begin(), neighbours.end()};
-        std::sort(neighbour_vector.begin(), neighbour_vector.end(),
-        [] (const std::pair<uint32_t, double>& n1,
-            const std::pair<uint32_t, double>& n2) -> bool {
-          return n1.second < n2.second;
-        });*/
+        
         std::sort(neighbour_distances.begin(), neighbour_distances.end());
         auto median = neighbour_distances[neighbour_distances.size()/2];
         output_string += "contig " + to_string(contig_id) + " Median: " + to_string(median) + "\n";
-        //std::cerr << "contig " << contig_id << " Median: " << median << std::endl;
         double sum = std::accumulate(neighbour_distances.begin(), neighbour_distances.end(), 0.0);
         double mean = sum / neighbour_distances.size();
 
@@ -468,11 +427,12 @@ void Graph::Construct(
         double stdev = std::sqrt(sq_sum / neighbour_distances.size() - mean * mean);
 
         output_string += "contig " + to_string(contig_id) + " sd: " + to_string(stdev) + "\n";
-        //std::cerr << "contig " << contig_id << " sd: " << stdev << std::endl;
       }
       output_string += "\n";
       return output_string;
 
+
+      // split into smaller bp (25 -> 5)
       for (auto& conseq_edge : conseq_edges_length) {
         if (get<0>(conseq_edge) >= median_conseq_edges*2) {
           long_edges.emplace_back(conseq_edge);
@@ -487,24 +447,14 @@ void Graph::Construct(
         }
       }
 
-      for (auto& w : window_id) {
-        //std::cerr << w.first << ", " << w.second << std::endl;
-      }
-
-     // std::cerr << "get long edge" << std::endl;
-
       if (long_edges.size() == 0) {
         std::cerr << "contig " << contig_id  << " have no long edges" << std::endl;
         return output_string;
       }
 
-
-      //std::cerr << "crash where?" << std::endl;
-
       std::unordered_map<int, pair<int, bool>> window_split_map;
       std::unordered_map<int, pair<int, bool>>::iterator window_split_map_iter;
 
-      int num_windows_this_contig = window_id_map[contig_id+1] - window_id_map[contig_id];
       int start = 0;
       int end = window_id_map[contig_id+1] - window_id_map[contig_id];
       //std::cerr << "start: " << start <<" , end: " << end << std::endl; 
@@ -522,29 +472,14 @@ void Graph::Construct(
         window_id_in_each_contig++;
       }
 
-      //std::cerr << "matrix size: " << starting_node_number << std::endl;
-
-      // print window split map
-      for (auto& window_split : window_split_map) {
-        //std::cerr << "window: " << window_split.first << ", map: " << window_split.second.first << " ," << window_split.second.second <<  std::endl;
-      }
-
-      //std::cerr << "crash where?" << std::endl;
-
-      //std::cerr << "number of windows that require splitting: " << window_id.size() << std::endl;
-      //std::cerr << "original matrix size: " << window_matrix.size() << std::endl; 
-      //std::cerr << "current matrix size aft splitting: " << starting_node_number << std::endl; 
       std::vector<std::vector<std::uint32_t>> window_split_matrix(starting_node_number, std::vector<std::uint32_t>(starting_node_number, 0));
       for (int r = 0; r < numRuns; r++) {
         Load(r);
-        //std::cerr << "load sucess? " << intra_links.size() << std::endl;
         GenerateMatrixAftSplitWindow(contig_id, window_split_map, window_split_matrix);
       }
 
-      //std::cerr << "after generate matrix, split matrix size: " << window_split_matrix.size() << std::endl;
-
-        // window matrix csv
       
+      // window matrix csv
       myfile.open("contig_" + std::to_string(contig_id) + "_window_matrix.csv");
       
       output = ",";
@@ -567,19 +502,14 @@ void Graph::Construct(
       }
       myfile.close();
 
-      // split into window into 1kbp
-     // std::cerr << "csv done" << std::endl;
-
       myfile.open("contig_" + std::to_string(contig_id) + "_split.txt");
-      for (int r = 0; r < window_split_matrix.size(); r++) {
-        for (int x = 0; x < r; x++) {
+      for (std::uint32_t r = 0; r < window_split_matrix.size(); r++) {
+        for (std::uint32_t x = 0; x < r; x++) {
           if (window_split_matrix[r][x] != 0)
             myfile << r << "--" << x << "," << window_split_matrix[r][x] << "\n";
         } 
       }
       myfile.close();
-
-      //std::cerr << "txt file done" << std::endl;
 
       directedforce::GenerateGraphFromDirectedForceAlgorithm("contig_" + std::to_string(contig_id) + "_split.txt", "contig_" + std::to_string(contig_id) + "_split_output.txt");
     }, std::ref(window_id_map), i, numRuns));
@@ -597,27 +527,19 @@ uint32_t Graph::KMPSearch(std::string pat, std::string txt) {
   int n = txt.length();
   int m = pat.length();
   uint32_t count = 0;
-  // empty pattern can only
-  // match with empty string.
-  // Base Case :
   if (m == 0)
     return (n == 0);
-  // step-1 :
-  // initailze markers :
   int i = 0, j = 0, index_txt = -1;
   while (i < n) {
-      // For step - (2, 5)
     if (j < m && txt[i] == pat[j]) {
       i++;
       j++;
     }
-    // For step - (3)
     else if (j < m && pat[j] == '?') {
       index_txt = i;
       i++;
       j++;
     }
-    // For step - (6)
     else if (index_txt != -1) {
       j = 0;
       i = index_txt;
@@ -628,7 +550,6 @@ uint32_t Graph::KMPSearch(std::string pat, std::string txt) {
       i++;
     }
     if (j == m) {
-      //cout << "seq: " << i-j << std::endl; 
       count++;
       j = 0;
     }
@@ -644,33 +565,13 @@ bool Graph::isIntraLink(Link &link) {
     return false;
 }
 
-int Graph::FindContigID(int window_id, std::vector<int>& window_id_map, int *begin, int *end) {
-  for (int i = 0; i < window_id_map.size(); i++) {
-    if (window_id < window_id_map[i]) {
-      *begin = (window_id - window_id_map[i-1])*window_size;
-      *end = (window_id - window_id_map[i-1])*window_size + window_size;
-      return i-1;
-    }
-      
-  }
-}
-
-// technically this also can be multi-thread - just remove the for loop
+// initialise vector for contig & number of windows in each contig
 void Graph::CreateGraph(
     std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets) {
   for (auto const& target : targets) {
-    // be sure to used std::ref() or std::cref() for references
-    std::cerr << "contig id: " << target->id << " len: " << target->inflated_len <<  " , num windows: " << std::ceil((double)target->inflated_len/25000) << std::endl;
+    std::cerr << "[tarantula::Construct] contig id: " << target->id << ", len: " << target->inflated_len <<  ", num windows: " << std::ceil((double)target->inflated_len/25000) << std::endl;
     contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size)); 
   }
-  
-
-  /*
-  for (auto const& target : targets) {
-    std::vector<uint32_t> restriction_sites = CalculateRestrictionSites(target, window_size);
-    //std::cerr << "contig : " << target->id << std::endl;
-    contigs.emplace(target->id, Node(target->id, target->inflated_len, window_size, restriction_sites));    
-  }*/
 }
 
 void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets, int window_size) {
@@ -680,9 +581,7 @@ void Graph::CalculateAllRestrictionSite(std::vector<std::unique_ptr<biosoup::Nuc
     ->void{
       std::vector<uint32_t> restriction_sites;
       std::string contig_seq = target->InflateData();
-      std::cerr << "contig seq size: " << contig_seq.size() << std::endl;
-      int size = ceil(contig_seq.size()/window_size);
-      int start = 0;
+      std::uint32_t start = 0;
       uint32_t gatc, gantc;
       while (start < contig_seq.size()) {
         gatc = KMPSearch("GATC", contig_seq.substr(start, window_size));
@@ -757,22 +656,6 @@ void Graph::GenerateMatrixWindowIntraLinks(
     }
   }
 
-/*
-void Graph::GenerateMatrixWindowIntraLinks(
-  std::vector<int>& window_id_map,
-  std::vector<std::vector<std::uint32_t>> &matrix,
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs) {
-  for (const auto& rp : read_pairs) {
-    int window_index_begin_1 = rp.second[0].rhs_begin/window_size;
-    int window_index_begin_2 = rp.second[1].rhs_begin/window_size;
-    int window = window_id_map[rp.second[1].rhs_id];
-    int window_id_1 = window + window_index_begin_1;
-    int window_id_2 = window + window_index_begin_2;
-    matrix[window_id_1][window_id_2]+=1;
-    matrix[window_id_2][window_id_1]+=1;
-  }
-}*/
-
 // windows split in order
 void Graph::GenerateMatrixAftSplitWindow(
   int contig_id,
@@ -830,132 +713,9 @@ void Graph::GenerateMatrixAftSplitWindow(
     }
   }
 
-/*
-void Graph::GenerateMatrixAftSplitWindow(
-  std::vector<int>& window_id_map,
-  std::unordered_map<int, int>& window_split_map,
-  std::vector<std::vector<std::uint32_t>> &matrix,
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs) {
-    std::unordered_map<int, int>::iterator window_split_map_iter1, window_split_map_iter2;
-    for (const auto& rp : read_pairs) {
-      int window_index_begin_1 = rp.second[0].rhs_begin/window_size;
-      int window_index_begin_2 = rp.second[1].rhs_begin/window_size;
-      int window = window_id_map[rp.second[1].rhs_id];
-      int window_id_1 = window + window_index_begin_1;
-      int window_id_2 = window + window_index_begin_2;
-      //std::cerr << "window id 1: " << window_id_1 << ", window id 2: " << window_id_2 << std::endl; 
-
-      window_split_map_iter1 = window_split_map.find(window_id_1);
-      if (window_split_map_iter1 != window_split_map.end()) {
-        //std::cerr << "+ " << (rp.second[0].rhs_begin - window_id_1*window_size)/1000 << std::endl;
-        int window_split_begin_1 = (rp.second[0].rhs_begin - window_index_begin_1*window_size)/1000 + window_split_map_iter1->second;
-        //std::cerr << "window split 1: " << window_split_begin_1 << std::endl;
-        window_split_map_iter2 = window_split_map.find(window_id_2);
-        if (window_split_map_iter2 != window_split_map.end()) {
-          //std::cerr << "+ " << (rp.second[1].rhs_begin - window_index_begin_2*window_size)/1000 << std::endl;
-          int window_split_begin_2 = (rp.second[1].rhs_begin - window_index_begin_2*window_size)/1000+ window_split_map_iter2->second;
-          matrix[window_split_begin_1][window_split_begin_2] += 1;
-          matrix[window_split_begin_2][window_split_begin_1] += 1;
-          //std::cerr << "window split 2: " << window_split_begin_2 << std::endl;
-        } else {
-          matrix[window_split_begin_1][window_id_2] += 1;
-          matrix[window_id_2][window_split_begin_1] += 1;
-        }
-        // if no window split, then just use window_id
-      } else {
-        window_split_map_iter2 = window_split_map.find(window_id_2);
-        if (window_split_map_iter2 != window_split_map.end()) {
-          //std::cerr << "+ " << (rp.second[1].rhs_begin - window_index_begin_2*window_size)/1000 << std::endl;
-          int window_split_begin_2 = (rp.second[1].rhs_begin - window_index_begin_2*window_size)/1000 + window_split_map_iter2->second;
-          //std::cerr << "window split 2: " << window_split_begin_2 << std::endl;
-          matrix[window_id_1][window_split_begin_2] += 1;
-          matrix[window_split_begin_2][window_id_1] += 1;
-        } else {
-          matrix[window_id_1][window_id_2] += 1;
-          matrix[window_id_2][window_id_1] += 1;
-        }
-      }
-    }
-  }*/
-
-/*
-void Graph::GenerateMatrixWindowIntraLinks(
-  std::vector<int>& window_id_map,
-  std::vector<std::vector<std::uint32_t>> &matrix,
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& read_pairs,
-  int window_size) {
-  for (const auto& rp : read_pairs) {
-    int window_index_begin_1 = rp.second[0].rhs_begin/window_size;
-    int window_index_begin_2 = rp.second[1].rhs_begin/window_size;
-    int window = window_id_map[rp.second[1].rhs_id];
-    int window_id_1 = window + window_index_begin_1;
-    int window_id_2 = window + window_index_begin_2;
-    matrix[window_id_1][window_id_2]+=1;
-    matrix[window_id_2][window_id_1]+=1;
-  }
-} */
-
-std::uint32_t Graph::MaxInMatrix(std::vector<std::vector<std::uint32_t>> &matrix) {
-  std::uint32_t max = 0;
-  for (std::uint32_t i = 0; i < matrix.size(); i++) {
-    for (std::uint32_t r = 0; r <= i; r++) {
-      if (matrix[i][r] > max) {
-        max = matrix[i][r];
-      }
-    }
-  }
-  return max;
-}
-
-std::uint32_t Graph::MaxInter(std::vector<std::vector<std::uint32_t>> &matrix) {
-  std::uint32_t max = 0;
-  for (std::uint32_t i = 0; i < matrix.size(); i++) {
-    for (std::uint32_t r = 0; r < i; r++) {
-      if (i == r)
-        continue;
-      if (matrix[i][r] > max) {
-        max = matrix[i][r];
-      }
-    }
-  }
-  return max;
-}
-
-std::uint32_t MaxIntra(std::vector<std::vector<std::uint32_t>> &matrix) {
-  std::uint32_t max = 0;
-  for (std::uint32_t i = 0; i < matrix.size(); i++) {
-    if (matrix[i][i] > max) {
-      max = matrix[i][i];
-    }
-  }
-  return max;
-}
-
-// for interlinks
-void Graph::GenerateMatrixWindow(
-  std::vector<int>& window_id_map,
-  std::vector<std::vector<std::uint32_t>> &matrix) {
-  std::unordered_map<std::uint32_t, Node>::iterator found;
-  int extra = 0;
-
-  for (const auto& inter_link : inter_links) {
-    int window_index_begin_1 = inter_link.rhs_begin/window_size;
-    int window_index_begin_2 = inter_link.lhs_begin/window_size;
-    int id_1 = inter_link.rhs_id;
-    int id_2 = inter_link.lhs_id;
-
-    int window_id_1_begin = window_index_begin_1+window_id_map[id_1];
-    int window_id_2_begin = window_index_begin_2+window_id_map[id_2];
-
-    matrix[window_id_1_begin][window_id_2_begin] += 1;
-    matrix[window_id_2_begin][window_id_1_begin] += 1;
-  }
-}
-
 void Graph::CalcualteInterChromosomeLinks() {
   std::unordered_map<std::uint32_t, Node>::iterator contig_iter;
   int window_index_begin;
-  int extra = 0;
   for (const auto& inter_link : inter_links) {
     window_index_begin = inter_link.rhs_begin/window_size;
   
@@ -976,178 +736,6 @@ void Graph::CalcualteInterChromosomeLinks() {
     }
   }
 }
-
-/*
-void Graph::CalcualteInterChromosomeLinks(
-  std::unordered_map<std::string, std::vector<biosoup::Overlap>>& interchromsome_read_pairs) {
-  std::unordered_map<std::uint32_t, Node>::iterator found;
-  int window_index_begin, window_index_end;
-  int strand_1, strand_2;
-  int extra = 0;
-  for (const auto& rp : interchromsome_read_pairs) {
-    strand_1 = rp.second[0].strand;
-    strand_2 = rp.second[1].strand;
-    window_index_begin = rp.second[0].rhs_begin/window_size;
-    window_index_end = rp.second[0].rhs_end/window_size;
-  
-    found = contigs.find(rp.second[0].rhs_id);
-    if (found == contigs.end()) {
-      std::cerr << "ERROR contig not found" << std::endl;
-    } else {
-      if (window_index_begin != window_index_end) {
-        found->second.windows[window_index_end].interchromosome_links++;
-        extra++;
-      }
-      found->second.windows[window_index_begin].interchromosome_links++;
-      found->second.interchromosome_links++;
-
-      if (strand_1 == strand_2) {
-        found->second.link_0011++;
-      } else {
-        found->second.link_0110++;
-      }
-    }
-    if (found->second.windows.size() <= window_index_end) {
-      std::cerr << "window size:" << found->second.windows.size() <<"window index: " << window_index_end << std::endl;
-    }
-
-    window_index_begin = rp.second[1].rhs_begin/window_size;
-    window_index_end = rp.second[1].rhs_end/window_size;
-    found = contigs.find(rp.second[1].rhs_id);
-    if (found == contigs.end()) {
-      std::cerr << "ERROR contig not found" << std::endl;
-    } else {
-      if (window_index_begin != window_index_end) {
-        found->second.windows[window_index_end].interchromosome_links++;
-        extra++;
-      }
-      found->second.windows[window_index_begin].interchromosome_links++;
-      found->second.interchromosome_links++;
-
-      if (strand_1 == strand_2) {
-        found->second.link_0011++;
-      } else {
-        found->second.link_0110++;
-      }
-    }
-    if (found->second.windows.size() <= window_index_end) {
-      std::cerr << "window size:" << found->second.windows.size() <<"window index: " << window_index_end << std::endl;
-    }
-  }
-}*/
-
-/*
-void Graph::FillPileogram() {
-  std::unordered_map<std::uint32_t, Node>::iterator contig_iter;
-  std::pair<std::uint32_t, std::uint32_t> overlap;
-  std::uint32_t average_overlap = 0;
-  std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
-  std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
-
-  for (const auto& intra_link : intra_links) {
-    contig_iter = contigs.find(intra_link.rhs_id);
-    if (contig_iter == contigs.end()) {
-      std::cerr << "ERROR CONTIG NOT FOUND" << std::endl;
-    } else {
-      // update intrachromosome links
-      contig_iter->second.intrachromosome_links++;
-      
-      // overlap
-
-      auto length = intra_link.rhs_begin - intra_link.lhs_begin;
-      if (length < -1) {
-        length *= -1;
-      }
-      average_overlap += length;
-
-      // throw into overlap map
-      overlap_map_iter = overlap_map.find(intra_link.rhs_id);
-      if (overlap_map_iter == overlap_map.end()) {
-        // not found, create map
-        std::vector<std::pair<std::uint32_t, std::uint32_t>> temp;
-        temp.emplace_back(overlap);
-        overlap_map.insert(std::make_pair(intra_link.rhs_id, temp));
-      } else {
-        overlap_map_iter->second.emplace_back(overlap);
-      }
-    }
-  }
-  for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
-    contig_iter = contigs.find(overlap_map_iter->first);
-    contig_iter->second.pileogram.AddLayer(overlap_map_iter->second);
-  }
-  average_overlap /= intra_links.size();
-  
-  std::cerr << "[tarantula::Construct] Stats: " << std::endl;
-  std::cerr << "[tarantula::Construct] average overlap: " << average_overlap << std::endl;
-}*/
-
-/*
-void Graph::FillPileogram() {  // NOLINT
-  std::unordered_map<std::uint32_t, Node>::iterator found;
-  std::pair<std::uint32_t, std::uint32_t> overlap;
-  std::uint32_t min_overlap = UINT32_MAX, max_overlap = 0, average_overlap = 0;
-  std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>> overlap_map;
-  std::unordered_map<std::uint32_t, std::vector<std::pair<std::uint32_t, std::uint32_t>>>::iterator overlap_map_iter;
-  // find the contig, then add layer to pileogram
-  int extra = 0;
-  for (const auto& rp : read_pairs) {
-    found = contigs.find(rp.second[0].rhs_id);
-    if (found == contigs.end()) {
-      // not found
-      std::cerr << "ERROR contig not found" << std::endl;
-    } else {
-      // update intrachromosome links
-      found->second.intrachromosome_links++;
-      
-      // overlap
-      overlap = GetOverlap(rp.second[0], rp.second[1]);
-      auto length = std::get<1>(overlap) - std::get<0>(overlap);
-      min_overlap = (length < min_overlap) ? length:min_overlap;
-      max_overlap = (length > max_overlap) ? length:max_overlap;
-      average_overlap += length;
-
-      // throw into overlap map
-      overlap_map_iter = overlap_map.find(rp.second[0].rhs_id);
-      if (overlap_map_iter == overlap_map.end()) {
-        // not found, create map
-        std::vector<std::pair<std::uint32_t, std::uint32_t>> temp;
-        temp.emplace_back(overlap);
-        overlap_map.insert(std::make_pair(rp.second[0].rhs_id, temp));
-      } else {
-        overlap_map_iter->second.emplace_back(overlap);
-      }
-    }
-  }
-  std::cerr << "[tarantula::Construct] Extra intrachromosome links between windows: " << extra << std::endl;
-  
-  for (overlap_map_iter = overlap_map.begin(); overlap_map_iter != overlap_map.end(); overlap_map_iter++) {
-    found = contigs.find(overlap_map_iter->first);
-    found->second.pileogram.AddLayer(overlap_map_iter->second);
-  }
-  average_overlap /= read_pairs.size();
-  std::cerr << "[tarantula::Construct] Stats: " << std::endl;
-  std::cerr << "[tarantula::Construct] min overlap: " << min_overlap << std::endl;
-  std::cerr << "[tarantula::Construct] max overlap: " << max_overlap << std::endl;
-  std::cerr << "[tarantula::Construct] average overlap: " << average_overlap << std::endl;
-} */
-
-/*
-std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(const Link& link) {
-  return std::make_pair(
-    std::min(link.rhs_begin, link.lhs_begin),
-    std::max(link.rhs_end,   link.lhs_end));
-}*/
-
-/*
-std::pair<std::uint32_t, std::uint32_t> Graph::GetOverlap(
-    biosoup::Overlap ol1,
-    biosoup::Overlap ol2) {
-  return std::make_pair(
-      std::min(ol1.rhs_begin, ol2.rhs_begin),
-      std::max(ol1.rhs_end,   ol2.rhs_end));
-}*/
-
 
 void Graph::Process(
   std::vector<std::future<std::vector<Link>>>& futures,
@@ -1199,7 +787,7 @@ void Graph::Process(
           return result;
         }
 
-        /*
+        // comment if do not want multiple long reads 
         // multiple long reads
         std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>> intra_pairs;
         std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>>::iterator iter;
@@ -1247,192 +835,17 @@ void Graph::Process(
         if (there_is_result)
           return result;
         else 
-          return {};*/
+          return {};
         
-        return {};
+        // uncomment if you do not want multiple long read
+        //return {};
 
-        
         std::cerr << "ERROR IN FILTERING" << std::endl;
         return {};
-
-
       },
     std::ref(minimizer_engine),
     std::cref(sequence1),
     std::cref(sequence2)));
-}
-
-/*
-// map hi-c reads to contig & filter
-void Graph::Process(
-  std::vector<std::future<std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>>>& futures,
-  ram::MinimizerEngine& minimizer_engine,
-  std::unique_ptr<biosoup::NucleicAcid>& sequence1,
-  std::unique_ptr<biosoup::NucleicAcid>& sequence2) {
-
-  futures.emplace_back(thread_pool_->Submit([&] (
-    ram::MinimizerEngine& minimizer_engine,
-    const std::unique_ptr<biosoup::NucleicAcid>& sequence1,
-    const std::unique_ptr<biosoup::NucleicAcid>& sequence2)
-    -> std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>>{
-      //std::vector<std::uint32_t> filtered1, filtered2;
-      std::vector<std::vector<biosoup::Overlap>> minimizer_result, minimizer_result_long_read;
-      minimizer_result.emplace_back(minimizer_engine.Map(sequence1, false, false, false));
-      minimizer_result.emplace_back(minimizer_engine.Map(sequence2, false, false, false));
-      auto long_read_len = sequence1->inflated_len*0.75;
-
-      // no overlap for 1 / both
-      if (minimizer_result[0].size() < 1 || minimizer_result[1].size() < 1) {
-        // no overlap, discard
-        if (minimizer_result[0].size() > 0 || minimizer_result[1].size() > 0) {
-          // minimizer_result.clear();
-          /*
-          if (filtered1.size() > 4 || filtered2.size() > 4)
-            return {{"1_overlap_mt_4", {}}};
-          if (filtered1.size() > 0 || filtered2.size() > 0)
-            return {{"1_overlap_mt_0", {}}};*/
-
-          //minimizer_result.clear();
-/*          return {{"1_overlap", {}}};
-        } else {
-          // minimizer_result.clear();
-          /*
-          if (filtered1.size() > 4 || filtered2.size() > 4)
-            return {{"empty_mt_4", {}}};
-          if (filtered1.size() > 0 || filtered2.size() > 0)
-            return {{"empty_mt_0", {}}};*/
-          //minimizer_result.clear();
-/*          return {{"empty", {}}};
-        }
-      }
-      
-      // filter out those len > 0.75
-      for (auto& minimizer : minimizer_result) {
-        std::vector<biosoup::Overlap> filtered_overlaps;
-        for (auto& overlap: minimizer) {
-          if (overlap.rhs_end - overlap.rhs_begin > long_read_len) {
-            filtered_overlaps.push_back(overlap);
-          }
-        }
-        minimizer_result_long_read.push_back(filtered_overlaps);
-      }
-
-      // no long reads for 1 / both
-      if (minimizer_result_long_read[0].size() == 0 || minimizer_result_long_read[1].size() == 0) {
-        /*
-        if (filtered1.size() > 4 || filtered2.size() > 4)
-          return {{sequence1->name + "__multiple_short_reads_mt_4", {}}};
-        if (filtered1.size() > 0 || filtered2.size() > 0)
-          return {{sequence1->name + "_multiple_short_reads_mt_0", {}}};*/
-/*        return {{sequence1->name + "_multiple_short_reads", {}}};
-      }
-        
-      // straight forward interchromosome / intrachromosome
-      if (minimizer_result_long_read[0].size() == 1 && minimizer_result_long_read[1].size() == 1) {
-        std::vector<biosoup::Overlap> result;
-        result.emplace_back(minimizer_result_long_read[0][0]);
-        result.emplace_back(minimizer_result_long_read[1][0]);
-        if (minimizer_result_long_read[0][0].rhs_id == minimizer_result_long_read[1][0].rhs_id) {
-          return {{sequence1->name, result}};
-        } else {
-          return {{sequence1->name + "_interchromosome", result}};
-        }
-      }
-
-
-      // multiple long reads
-      std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>> intra_pairs;
-      std::unordered_map<std::uint32_t, std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>>>::iterator iter;
-      int pair_count = 0;
-      for (auto& minimizer_result_each_pair : minimizer_result_long_read) {
-        for (auto& overlap : minimizer_result_each_pair) {
-          iter = intra_pairs.find(overlap.rhs_id);
-          if (iter == intra_pairs.end()) {
-            if (pair_count == 1) {
-              continue;
-            }
-            std::vector<biosoup::Overlap> vec1 = {overlap};
-            std::vector<biosoup::Overlap> vec2 = {};
-            std::tuple<std::vector<biosoup::Overlap>, std::vector<biosoup::Overlap>> temp_tuple = std::make_tuple(vec1, vec2);
-            intra_pairs.insert({overlap.rhs_id, temp_tuple});
-          } else {
-            if (pair_count == 0)
-              std::get<0>(iter->second).push_back(overlap);
-            else
-              std::get<1>(iter->second).push_back(overlap);
-          }
-        }
-        pair_count++;
-      }
-
-      
-      std::vector<std::pair<std::string, std::vector<biosoup::Overlap>>> result;
-      bool there_is_result = false;
-      for (auto const& pair : intra_pairs) {
-        if (std::get<0>(pair.second).size() != 0 && std::get<1>(pair.second).size() != 0) {
-          there_is_result = true;
-          for (auto const& ol1 : std::get<0>(pair.second)) {
-            for (auto const& ol2 : std::get<1>(pair.second)) {
-              result.push_back({sequence1->name, {ol1, ol2 }});
-            }
-          }
-        }
-      }
-      if (there_is_result)
-        return result;
-      
-      int num_pair_w_multi_overlap = 0;
-      if (minimizer_result_long_read[0].size() > 1)
-        num_pair_w_multi_overlap++;
-      if (minimizer_result_long_read[1].size() > 1)
-        num_pair_w_multi_overlap++;
-
-      if (num_pair_w_multi_overlap == 1) {
-        return {{sequence1->name + "_multiple_long_reads_1_pair", {}}};
-      } else if (num_pair_w_multi_overlap == 2) {
-        return {{sequence1->name + "_multiple_long_reads_2_pair", {}}};
-      }
-
-      
-      //std::cerr <<"still have discard" << std::endl;
-      return {{"discard", {}}};
-
-
-    },
-    std::ref(minimizer_engine),
-    std::cref(sequence1),
-    std::cref(sequence2)));
-  }*/
-
-std::vector<std::vector<uint32_t>> Graph::GetComponents(std::vector<std::vector<std::uint32_t>> &matrix) {
-  std::cerr << "start get components" << std::endl;
-  std::vector<std::vector<uint32_t>> components;
-  std::queue<uint32_t> q;
-  std::vector<bool> is_visited(contigs.size(), false);
-  for (int r = 0; r < static_cast<int>(contigs.size()); r++) {
-    std::vector<uint32_t> temp;
-    if (!is_visited[r]) {
-      q.push(r);
-    }
-    while (!q.empty()) {
-      uint32_t node = q.front();
-      q.pop();
-      if (is_visited[node]) {
-        continue;
-      }
-
-      for (int i = 0; i < static_cast<int>(matrix[node].size()); i++) {
-        if ((matrix[node][i] != 0 && static_cast<int>(node) != i) && !is_visited[i])
-          q.push(i);
-      }
-      is_visited[node] = true;
-      temp.push_back(node);
-    }
-    if (temp.size()!= 0)
-      components.push_back(temp);
-  }
-  std::cerr << "end get components" << std::endl;
-  return components;
 }
 
 int Graph::GetNumWindows() {
@@ -1455,7 +868,7 @@ void Graph::PrintJson(const std::string& path) const {
   }
 }
 
-
+// store overlap, i is the batch num
 void Graph::Store(int i) const {
   std::ofstream os("overlaps_" + to_string(i) + ".cereal");
   try {
@@ -1467,6 +880,7 @@ void Graph::Store(int i) const {
   }
 }
 
+// load overlap, i is the batch num
 void Graph::Load(int i) {
   std::ifstream is("overlaps_" + to_string(i) + ".cereal");
   intra_links.clear();

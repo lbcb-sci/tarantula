@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
 
   tarantula::Graph graph{thread_pool, bp_per_window};
 
-  graph.Construct(targets, sequences, num_threads);
+  graph.Construct(targets, sequences);
   //graph.PrintJson("piles.json");
 
   timer.Stop();
