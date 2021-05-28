@@ -22,6 +22,9 @@ endif ()
 option(tarantula_build_tests "Build unit tests" ${tarantula_main_project})
 
 find_package(bioparser 3.0.13 QUIET)
+find_package(cereal 1.3.0 QUIET)
+find_package(ram 2.0.0 QUIET)
+
 if (NOT bioparser_FOUND)
   FetchContent_Declare(
     bioparser
@@ -38,7 +41,23 @@ if (NOT bioparser_FOUND)
   endif ()
 endif ()
 
-find_package(ram 2.0.0 QUIET)
+if (NOT cereal_FOUND)
+  FetchContent_Declare(
+    cereal
+    GIT_REPOSITORY https://github.com/USCiLab/cereal
+    GIT_TAG v1.3.0)
+
+  FetchContent_GetProperties(cereal)
+  if (NOT cereal_POPULATED)
+    FetchContent_Populate(cereal)
+    add_subdirectory(
+      ${cereal_SOURCE_DIR}
+      ${cereal_BINARY_DIR}
+      EXCLUDE_FROM_ALL)
+    add_library(cereal::cereal ALIAS cereal)
+  endif ()
+endif ()
+
 if (NOT ram_FOUND)
   FetchContent_Declare(
     ram
@@ -79,6 +98,7 @@ add_library(tarantula
   src/graph.cpp)
 
 target_link_libraries(tarantula
+  cereal::cereal
   ram::ram)
 
 target_include_directories(tarantula PUBLIC
