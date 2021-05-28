@@ -407,7 +407,7 @@ std::unordered_map<std::string, std::uint32_t> parseTxtFile(
         std::istringstream os(weight_str);
         os >> weight;
       } else  {
-        weight = std::stoi(weight_str);
+        weight = std::stod(weight_str);
       }
       //std::cerr << "weight" << weight << std::endl;
       /*

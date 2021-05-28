@@ -32,7 +32,7 @@ void Graph::Construct(
   std::ofstream myfile, myfile2, myfile3, myfile4, myfile5, myfile6, myfile7;
 
  // change to false if contig_?.txt is already generated --> will skip to directed force algorithm immediately
-  if (true) {
+  if (false) {
   // paramters for RAM
   uint32_t k = 21, w = 11, bandwidth = 100, chain = 2, matches = 25, gap = 100;
   double frequency = 0.0001;
@@ -215,8 +215,9 @@ void Graph::Construct(
   std::unordered_map<std::uint32_t, Node>::iterator contigs_iter;
   for (const auto& window_matrix : window_matrix_all_contig) {
     myfile.open("contig_" + std::to_string(window_matrix.first) + ".txt");
-    myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled.txt");
-    myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
+    myfile2.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m.txt");
+    myfile3.open("contig_" + std::to_string(window_matrix.first) + "_scaled_m_all_nodes.txt");
+    myfile5.open("contig_" + std::to_string(window_matrix.first) + "_all_nodes.txt");
     myfile4.open("contig_" + std::to_string(window_matrix.first) + "_restriction_site_analysis.txt");
     contigs_iter = contigs.find(window_matrix.first);
     int node_count = 0;
@@ -230,17 +231,21 @@ void Graph::Construct(
           node_aval = true;
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           weight = static_cast<double>(window_matrix.second[r][x])/site_count;
-          myfile << r << "--" << x << "," << 1 + window_matrix.second[r][x] << "\n";
-          myfile2 << r << "--" << r+1 << "," << 1 + weight << "\n";
-          myfile3 << r << "--" << r+1 << "," << 1 + weight*100 << "\n";
+          myfile5 << r << "--" << x << "," << 1 + window_matrix.second[r][x] << "\n";
+          myfile3 << r << "--" << x << "," << 1 + weight*100 << "\n";
+          if (window_matrix.second[r][x] != 0) {
+            myfile2 << r << "--" << x << "," << weight*100 << "\n";
+            myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
+          }
         } else if (window_matrix.second[r][x] != 0) {
           
           node_aval = true;
           int site_count = contigs_iter->second.restriction_sites[r] + contigs_iter->second.restriction_sites[x];
           weight = static_cast<double>(window_matrix.second[r][x])/site_count;
           myfile << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
-          myfile2 << r << "--" << x << "," << weight << "\n"; 
+          myfile2 << r << "--" << x << "," << weight*100 << "\n"; 
           myfile3 << r << "--" << x << "," << weight*100 << "\n";
+          myfile5 << r << "--" << x << "," << window_matrix.second[r][x] << "\n";
           myfile4 << r << "--" << x << "," << window_matrix.second[r][x] << " / (" 
                   << contigs_iter->second.restriction_sites[r] << " + "
                   << contigs_iter->second.restriction_sites[x] << ") = "
@@ -266,6 +271,7 @@ void Graph::Construct(
     myfile2.close();
     myfile3.close();
     myfile4.close();
+    myfile5.close();
   }
   } else {
     // skip stage
@@ -284,8 +290,8 @@ void Graph::Construct(
       int contig_id, 
       int numRuns) -> std::string {
       std::string output_string = "";
-      std::string input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
-      std::string output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
+      std::string input = "contig_" + std::to_string(contig_id) + ".txt";
+      std::string output = "contig_" + std::to_string(contig_id) + "_output.txt";
       std::vector<std::shared_ptr<directedforce::Vertex>> vertices_unmaped;
       std::vector<std::vector<double>> edges;
       std::unordered_map<std::string, std::uint32_t> map_table;
@@ -293,11 +299,29 @@ void Graph::Construct(
       std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter1;
       std::unordered_map<int, std::shared_ptr<directedforce::Vertex>>::iterator iter2;
 
-      directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
+      directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output);
+
+      //directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output, vertices_unmaped, edges, map_table);
+
+      input = "contig_" + std::to_string(contig_id) + "_scaled_m.txt";
+      output = "contig_" + std::to_string(contig_id) + "_scaled_m_output.txt";
+
+      directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output);
+
+      input = "contig_" + std::to_string(contig_id) + "_scaled_m_all_nodes.txt";
+      output = "contig_" + std::to_string(contig_id) + "_scaled_m_all_nodes_output.txt";
+
+      directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output);
+
+      input = "contig_" + std::to_string(contig_id) + "_all_nodes.txt";
+      output = "contig_" + std::to_string(contig_id) + "_all_nodes_output.txt";
+
+      directedforce::GenerateGraphFromDirectedForceAlgorithm(input, output);
       
       // no split
-      //return;
+      return "";
       
+      // find nearest +- 10 nodes for long edges
       if (vertices_unmaped.size() == 0)
         return output_string;
 
