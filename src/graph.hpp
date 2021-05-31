@@ -35,8 +35,8 @@ class Graph {
 
   void Construct(
       const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& targets,
-      const std::string& path,
-      const std::string& path_pair);
+      const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
+      const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& pairs);
 
   void Load();  // cereal load wrapper
 
@@ -49,7 +49,7 @@ class Graph {
 
   template<class Archive>
   void serialize(Archive& archive) {  // NOLINT
-    archive(stage_, checkpoints_, targets_, links_, support_);
+    archive(stage_, checkpoints_, targets_, unique_, ambiguous_);
   }
 
   struct Link {
@@ -58,7 +58,11 @@ class Graph {
 
     Link(
         std::uint16_t lhs_id, std::uint32_t lhs_pos,
-        std::uint16_t rhs_id, std::uint32_t rhs_pos);
+        std::uint16_t rhs_id, std::uint32_t rhs_pos)
+        : lhs_id(lhs_id),
+          rhs_id(rhs_id),
+          lhs_pos(lhs_pos),
+          rhs_pos(rhs_pos) {}
 
     Link(const Link&) = default;
     Link& operator=(const Link&) = default;
@@ -84,8 +88,8 @@ class Graph {
   int stage_;
   bool checkpoints_;
   std::vector<std::uint32_t> targets_;
-  std::vector<Link> links_;
-  std::vector<Link> support_;
+  std::vector<Link> unique_;
+  std::vector<Link> ambiguous_;
 };
 
 }  // namespace tarantula

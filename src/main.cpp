@@ -124,6 +124,14 @@ int main(int argc, char** argv) {
   if (tparser == nullptr) {
     return 1;
   }
+  auto sparser = CreateParser(input_paths[1]);
+  if (sparser == nullptr) {
+    return 1;
+  }
+  auto pparser = CreateParser(input_paths[2]);
+  if (pparser == nullptr) {
+    return 1;
+  }
 
   biosoup::Timer timer{};
   timer.Start();
@@ -145,7 +153,7 @@ int main(int argc, char** argv) {
     timer.Start();
   }
 
-  std::vector<std::unique_ptr<biosoup::NucleicAcid>> targets;
+  std::vector<std::unique_ptr<biosoup::NucleicAcid>> targets, sequences, pairs;
   if (graph.stage() < 0) {
     try {
       targets = tparser->Parse(-1);
@@ -159,9 +167,38 @@ int main(int argc, char** argv) {
               << std::endl;
 
     timer.Start();
+
+    try {
+      sequences = sparser->Parse(-1);
+    } catch (std::invalid_argument& exception) {
+      std::cerr << exception.what() << std::endl;
+      return 1;
+    }
+
+    std::cerr << "[tarantula::] loaded " << sequences.size() << " sequences "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    timer.Start();
+
+    try {
+      pairs = pparser->Parse(-1);
+    } catch (std::invalid_argument& exception) {
+      std::cerr << exception.what() << std::endl;
+      return 1;
+    }
+
+    std::cerr << "[tarantula::] loaded " << pairs.size() << " pairs "
+              << std::fixed << timer.Stop() << "s"
+              << std::endl;
+
+    timer.Start();
   }
 
-  graph.Construct(targets, input_paths[1], input_paths[2]);
+  graph.Construct(targets, sequences, pairs);
+
+  sequences.clear();
+  pairs.clear();
 
   timer.Stop();
   std::cerr << "[tarantula::] " << std::fixed << timer.elapsed_time() << "s"
