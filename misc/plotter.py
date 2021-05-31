@@ -72,7 +72,7 @@ class Plotter:
       pyplot.xticks([])
       pyplot.yticks([])
       pyplot.axis('off')
-      pyplot.savefig(title + '.png', format = 'png')
+      pyplot.savefig(component + '.jpg', format = 'jpg')
       pyplot.close()
   # DrawGraph
 

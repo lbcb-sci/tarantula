@@ -200,6 +200,8 @@ int main(int argc, char** argv) {
   sequences.clear();
   pairs.clear();
 
+  graph.Scaffold();
+
   timer.Stop();
   std::cerr << "[tarantula::] " << std::fixed << timer.elapsed_time() << "s"
             << std::endl;

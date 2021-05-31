@@ -38,6 +38,8 @@ class Graph {
       const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& sequences,
       const std::vector<std::unique_ptr<biosoup::NucleicAcid>>& pairs);
 
+  void Scaffold();
+
   void Load();  // cereal load wrapper
 
   void Store() const;  // cereal store wrapper
@@ -51,6 +53,10 @@ class Graph {
   void serialize(Archive& archive) {  // NOLINT
     archive(stage_, checkpoints_, targets_, unique_, ambiguous_);
   }
+
+  void CreateSubgraph(std::size_t i, std::size_t w);
+
+  void CreateForceDirectedLayout(const std::string& path = "");
 
   struct Link {
    public:
@@ -83,6 +89,34 @@ class Graph {
     std::uint32_t rhs_pos;
   };
 
+  struct Node;
+  struct Edge;
+
+  struct Node {
+   public:
+    Node()
+        : id(num_objects++) {}
+
+    static std::uint32_t num_objects;
+
+    std::uint32_t id;
+    std::vector<Edge*> edges;
+  };
+
+  struct Edge {
+   public:
+    Edge()
+        : id(num_objects++) {}
+
+    static std::uint32_t num_objects;
+
+    std::uint32_t id;
+    std::uint32_t strength;
+    double weight;
+    Node* tail;
+    Node* head;
+  };
+
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;
 
   int stage_;
@@ -90,6 +124,8 @@ class Graph {
   std::vector<std::uint32_t> targets_;
   std::vector<Link> unique_;
   std::vector<Link> ambiguous_;
+  std::vector<std::unique_ptr<Node>> nodes_;
+  std::vector<std::unique_ptr<Edge>> edges_;
 };
 
 }  // namespace tarantula
