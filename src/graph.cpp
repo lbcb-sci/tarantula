@@ -168,15 +168,15 @@ void Graph::Scaffold() {
   }
 }
 
-void Graph::CreateSubgraph(std::size_t i, std::size_t w) {
+void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
   nodes_.clear();
   edges_.clear();
 
-  if (i >= targets_.size() || targets_[i] < w) {
+  if (i >= targets_.size() || targets_[i] < resolution) {
     return;
   }
 
-  for (std::size_t j = 0; j < targets_[i]; j += w) {
+  for (std::size_t j = 0; j < targets_[i]; j += resolution) {
     nodes_.emplace_back(std::unique_ptr<Node>(new Node()));
   }
 
@@ -191,6 +191,44 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t w) {
     edges_.back()->head = nodes_[j].get();
     nodes_[j + 1]->edges.emplace_back(edges_.back().get());
   }
+
+  auto add_links = [&] (const std::vector<Link>& links) -> void {
+    for (const auto& it : links) {
+      if (it.lhs_id == i && it.rhs_id == i) {
+        auto tail_id = it.lhs_pos / resolution;
+        auto head_id = it.rhs_pos / resolution;
+        if (tail_id == head_id) {
+          continue;
+        }
+
+        bool is_found = false;
+        for (const auto& jt : nodes_[tail_id]->edges) {
+          if (jt->head->id == head_id) {
+            jt->strength++;
+            is_found = true;
+            break;
+          }
+        }
+
+        if (is_found) {
+          continue;
+        }
+
+        edges_.emplace_back(std::unique_ptr<Edge>(new Edge()));
+        edges_.back()->tail = nodes_[tail_id].get();
+        edges_.back()->head = nodes_[head_id].get();
+        nodes_[tail_id]->edges.emplace_back(edges_.back().get());
+
+        edges_.emplace_back(std::unique_ptr<Edge>(new Edge()));
+        edges_.back()->tail = nodes_[head_id].get();
+        edges_.back()->head = nodes_[tail_id].get();
+        nodes_[head_id]->edges.emplace_back(edges_.back().get());
+      }
+    }
+  };
+
+  add_links(unique_);
+  add_links(ambiguous_);
 }
 
 void Graph::CreateForceDirectedLayout(const std::string& path) {
@@ -393,7 +431,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
           if (distance < 0.01) {
             distance = 0.01;
           }
-          displacement += delta * (-1. * distance / k);
+          displacement += delta * (-1. * distance * e->strength / k);
         }
         auto length = displacement.Norm();
         if (length < 0.01) {

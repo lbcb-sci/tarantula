@@ -54,7 +54,7 @@ class Graph {
     archive(stage_, checkpoints_, targets_, unique_, ambiguous_);
   }
 
-  void CreateSubgraph(std::size_t i, std::size_t w);
+  void CreateSubgraph(std::size_t i, std::size_t resolution);
 
   void CreateForceDirectedLayout(const std::string& path = "");
 
@@ -106,7 +106,8 @@ class Graph {
   struct Edge {
    public:
     Edge()
-        : id(num_objects++) {}
+        : id(num_objects++),
+          strength(1) {}
 
     static std::uint32_t num_objects;
 
