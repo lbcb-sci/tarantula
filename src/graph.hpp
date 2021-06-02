@@ -116,6 +116,7 @@ class Graph {
     double weight;
     Node* tail;
     Node* head;
+    Edge* pair;
   };
 
   std::shared_ptr<thread_pool::ThreadPool> thread_pool_;

@@ -69,40 +69,37 @@ void Graph::Construct(
           [&] (std::uint32_t i) -> std::vector<Link> {
             std::vector<Link> dst;
 
-            auto fo = minimizer_engine.Map(sequences[i], false, false);
-            std::sort(fo.begin(), fo.end(),
-                [] (const biosoup::Overlap& lhs,
-                    const biosoup::Overlap& rhs) -> bool {
-                  return lhs.rhs_end - lhs.rhs_begin > rhs.rhs_end - rhs.rhs_begin;  // NOLINT
-                });
-            for (std::size_t j = 0; j < fo.size(); ++j) {
-              if (fo[j].rhs_end - fo[j].rhs_begin < 0.42 * sequences[i]->inflated_len) {  // NOLINT
-                fo.resize(j);
-                break;
+            auto map = [&] (const std::unique_ptr<biosoup::NucleicAcid>& na)
+                -> std::vector<biosoup::Overlap> {
+              auto ovl = minimizer_engine.Map(na, false, false);
+              std::sort(ovl.begin(), ovl.end(),
+                  [] (const biosoup::Overlap& lhs,
+                      const biosoup::Overlap& rhs) -> bool {
+                    return lhs.rhs_end - lhs.rhs_begin >
+                           rhs.rhs_end - rhs.rhs_begin;
+                  });
+              ovl.resize(4);
+              for (std::size_t j = 0; j < ovl.size(); ++j) {
+                if (ovl[j].rhs_end - ovl[j].rhs_begin < 0.42 * na->inflated_len) {  // NOLINT
+                  ovl.resize(j);
+                  break;
+                }
               }
-            }
-            if (fo.empty()) {
+              return ovl;
+            };
+
+            auto first = map(sequences[i]);
+            if (first.empty()) {
               return dst;
             }
 
-            auto so = minimizer_engine.Map(pairs[i], false, false);
-            std::sort(so.begin(), so.end(),
-                [] (const biosoup::Overlap& lhs,
-                    const biosoup::Overlap& rhs) -> bool {
-                  return lhs.rhs_end - lhs.rhs_begin > rhs.rhs_end - rhs.rhs_begin;  // NOLINT
-                });
-            for (std::size_t j = 0; j < so.size(); ++j) {
-              if (so[j].rhs_end - so[j].rhs_begin < 0.42 * pairs[i]->inflated_len) {  // NOLINT
-                so.resize(j);
-                break;
-              }
-            }
-            if (so.empty()) {
+            auto second = map(pairs[i]);
+            if (second.empty()) {
               return dst;
             }
 
-            for (const auto& it : fo) {
-              for (const auto& jt : so) {
+            for (const auto& it : first) {
+              for (const auto& jt : second) {
                 dst.emplace_back(
                     it.rhs_id, it.rhs_begin,
                     jt.rhs_id, jt.rhs_begin);
@@ -193,6 +190,9 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
     edges_.back()->tail = nodes_[j + 1].get();
     edges_.back()->head = nodes_[j].get();
     nodes_[j + 1]->edges.emplace_back(edges_.back().get());
+
+    edges_[edges_.size() - 2]->pair = edges_[edges_.size() - 1].get();
+    edges_[edges_.size() - 1]->pair = edges_[edges_.size() - 2].get();
   }
 
   auto add_links = [&] (const std::vector<Link>& links) -> void {
@@ -208,6 +208,7 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
         for (const auto& jt : nodes_[tail_id]->edges) {
           if (jt->head->id == head_id) {
             jt->strength++;
+            jt->pair->strength++;
             is_found = true;
             break;
           }
@@ -226,6 +227,9 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
         edges_.back()->tail = nodes_[head_id].get();
         edges_.back()->head = nodes_[tail_id].get();
         nodes_[head_id]->edges.emplace_back(edges_.back().get());
+
+        edges_[edges_.size() - 2]->pair = edges_[edges_.size() - 1].get();
+        edges_[edges_.size() - 1]->pair = edges_[edges_.size() - 2].get();
       }
     }
   };
@@ -458,7 +462,7 @@ void Graph::CreateForceDirectedLayout(const std::string& path) {
     }
 
     for (const auto& it : edges_) {
-      if (it == nullptr) {
+      if (it == nullptr || (it->tail->id ^ it->head->id) != 1) {
         continue;
       }
       auto n = it->tail->id;
