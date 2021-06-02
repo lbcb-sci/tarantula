@@ -170,7 +170,10 @@ void Graph::Scaffold() {
 
 void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
   nodes_.clear();
+  Node::num_objects = 0;
+
   edges_.clear();
+  Edge::num_objects = 0;
 
   if (i >= targets_.size() || targets_[i] < resolution) {
     return;
