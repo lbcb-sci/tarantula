@@ -10,8 +10,24 @@
 
 #include "biosoup/nucleic_acid.hpp"
 #include "cereal/access.hpp"
+#include "cereal/types/string.hpp"
 #include "cereal/types/vector.hpp"
 #include "thread_pool/thread_pool.hpp"
+
+namespace biosoup {
+
+template<class Archive>
+void serialize(Archive& archive, NucleicAcid& sequence) {  // NOLINT
+  archive(
+      sequence.id,
+      sequence.name,
+      sequence.deflated_data,
+      sequence.block_quality,
+      sequence.inflated_len,
+      sequence.is_reverse_complement);
+}
+
+}  // namespace biosoup
 
 namespace tarantula {
 
@@ -100,20 +116,20 @@ class Graph {
     static std::uint32_t num_objects;
 
     std::uint32_t id;
+    std::uint32_t cuts = 0;
     std::vector<Edge*> edges;
   };
 
   struct Edge {
    public:
     Edge()
-        : id(num_objects++),
-          strength(1) {}
+        : id(num_objects++) {}
 
     static std::uint32_t num_objects;
 
     std::uint32_t id;
-    std::uint32_t strength;
-    double weight;
+    double strength = 0;
+    double weight = 0;
     Node* tail;
     Node* head;
     Edge* pair;
@@ -123,7 +139,7 @@ class Graph {
 
   int stage_;
   bool checkpoints_;
-  std::vector<std::uint32_t> targets_;
+  std::vector<biosoup::NucleicAcid> targets_;
   std::vector<Link> unique_;
   std::vector<Link> ambiguous_;
   std::vector<std::unique_ptr<Node>> nodes_;

@@ -27,8 +27,11 @@ Graph::Graph(
         std::make_shared<thread_pool::ThreadPool>(1)),
       stage_(-1),
       checkpoints_(checkpoints),
+      targets_(),
       unique_(),
-      ambiguous_() {
+      ambiguous_(),
+      nodes_(),
+      edges_() {
 }
 
 void Graph::Construct(
@@ -46,8 +49,9 @@ void Graph::Construct(
   biosoup::Timer timer{};
 
   if (stage_ == -1) {  // find links
+    biosoup::NucleicAcid::num_objects = 0;
     for (const auto& it : targets) {
-      targets_.emplace_back(it->inflated_len);
+      targets_.emplace_back(*it);
     }
 
     timer.Start();
@@ -78,7 +82,6 @@ void Graph::Construct(
                     return lhs.rhs_end - lhs.rhs_begin >
                            rhs.rhs_end - rhs.rhs_begin;
                   });
-              ovl.resize(4);
               for (std::size_t j = 0; j < ovl.size(); ++j) {
                 if (ovl[j].rhs_end - ovl[j].rhs_begin < 0.42 * na->inflated_len) {  // NOLINT
                   ovl.resize(j);
@@ -172,12 +175,30 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
   edges_.clear();
   Edge::num_objects = 0;
 
-  if (i >= targets_.size() || targets_[i] < resolution) {
+  if (i >= targets_.size() || targets_[i].inflated_len < resolution) {
     return;
   }
 
-  for (std::size_t j = 0; j < targets_[i]; j += resolution) {
+  auto occurence = [] (const std::string& str, const std::string& pattern)
+      -> std::size_t {
+    std::size_t dst = 0;
+    std::string::size_type pos = 0;
+    while ((pos = str.find(pattern, pos)) != std::string::npos) {
+      ++dst;
+      pos += pattern.size();
+    }
+    return dst;
+  };
+
+  std::vector<std::string> enzymes = {"GATC", "GAATC", "GACTC", "GAGTC", "GATTC"};  // NOLINT
+
+  for (std::size_t j = 0; j < targets_[i].inflated_len; j += resolution) {
     nodes_.emplace_back(std::unique_ptr<Node>(new Node()));
+
+    std::string window = targets_[i].InflateData(j, resolution);
+    for (const auto& it : enzymes) {
+      nodes_.back()->cuts += occurence(window, it);
+    }
   }
 
   for (std::size_t j = 0; j < nodes_.size() - 1; ++j) {
@@ -194,6 +215,9 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
     edges_[edges_.size() - 2]->pair = edges_[edges_.size() - 1].get();
     edges_[edges_.size() - 1]->pair = edges_[edges_.size() - 2].get();
   }
+  for (auto& it : edges_) {
+    it->strength = 1;
+  }
 
   auto add_links = [&] (const std::vector<Link>& links) -> void {
     for (const auto& it : links) {
@@ -207,8 +231,8 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
         bool is_found = false;
         for (const auto& jt : nodes_[tail_id]->edges) {
           if (jt->head->id == head_id) {
-            jt->strength++;
-            jt->pair->strength++;
+            jt->weight++;
+            jt->pair->weight++;
             is_found = true;
             break;
           }
@@ -235,7 +259,47 @@ void Graph::CreateSubgraph(std::size_t i, std::size_t resolution) {
   };
 
   add_links(unique_);
+  for (auto& it : edges_) {
+    if (it->weight != 0) {
+      it->strength += std::log(it->weight);
+      it->weight = 0;
+    }
+  }
   add_links(ambiguous_);
+  for (auto& it : edges_) {
+    if (it->weight != 0) {
+      it->strength += std::log(it->weight);
+      it->weight = 0;
+    }
+  }
+
+  std::vector<std::vector<double>> strengths(10);
+  std::size_t bad = 0;
+  for (std::size_t j = 0; j < edges_.size(); j += 2) {
+    if (edges_[j]->strength != edges_[j]->pair->strength) {
+      ++bad;
+    }
+    std::size_t distance = std::min(9, std::abs(
+        static_cast<std::int32_t>(edges_[j]->head->id) -
+        static_cast<std::int32_t>(edges_[j]->tail->id)));
+    strengths[distance].emplace_back(edges_[j]->strength);
+  }
+  std::cerr << "Component " << i << " [" << nodes_.size() << "] " << std::endl;
+  std::cerr << "Bad edges = " << bad << std::endl;
+  for (std::size_t j = 0; j < strengths.size(); ++j) {
+    std::cerr << j << ": [" << strengths[j].size() << "] ";
+    if (strengths[j].empty()) {
+      std::cerr << std::endl;
+      continue;
+    }
+    std::sort(strengths[j].begin(), strengths[j].end());
+    std::cerr << strengths[j].front() << " "
+              << strengths[j][1 * strengths[j].size() / 4] << " "
+              << strengths[j][2 * strengths[j].size() / 4] << " "
+              << strengths[j][3 * strengths[j].size() / 4] << " "
+              << strengths[j].back() << std::endl;
+  }
+  std::cerr << std::endl;
 }
 
 void Graph::CreateForceDirectedLayout(const std::string& path) {
